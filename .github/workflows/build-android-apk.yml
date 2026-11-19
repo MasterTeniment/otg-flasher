@@ -1,0 +1,93 @@
+name: Build FlashOdin Native Android APK
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Detect or extract Android project
+        id: detect_dir
+        run: |
+          if [ -f "android-native/settings.gradle.kts" ]; then
+            echo "dir=android-native" >> "$GITHUB_OUTPUT"
+          elif [ -f "settings.gradle.kts" ]; then
+            echo "dir=." >> "$GITHUB_OUTPUT"
+          else
+            ZIP_FILE=$(ls -1 *FlashOdin*.zip *.zip 2>/dev/null | head -n 1 || true)
+            if [ -n "$ZIP_FILE" ]; then
+              echo "Extracting $ZIP_FILE..."
+              mkdir -p extracted-android
+              unzip -oq "$ZIP_FILE" -d extracted-android
+              if [ -f "extracted-android/settings.gradle.kts" ]; then
+                echo "dir=extracted-android" >> "$GITHUB_OUTPUT"
+              elif [ -f "extracted-android/android-native/settings.gradle.kts" ]; then
+                echo "dir=extracted-android/android-native" >> "$GITHUB_OUTPUT"
+              else
+                FOUND=$(find extracted-android -maxdepth 3 -name "settings.gradle.kts" | head -n 1 || true)
+                if [ -n "$FOUND" ]; then
+                  echo "dir=$(dirname "$FOUND")" >> "$GITHUB_OUTPUT"
+                else
+                  echo "Error: settings.gradle.kts not found inside $ZIP_FILE"
+                  exit 1
+                fi
+              fi
+            else
+              echo "Error: Please upload FlashOdin-Android-Native.zip to your repository root."
+              exit 1
+            fi
+          fi
+
+      - name: Set up Gradle 8.7
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.7'
+
+      - name: Build FlashOdin Debug APK (Installable on Android)
+        working-directory: ${{ steps.detect_dir.outputs.dir }}
+        run: gradle assembleDebug --stacktrace
+
+      - name: Prepare FlashOdin.apk artifact
+        working-directory: ${{ steps.detect_dir.outputs.dir }}
+        run: |
+          mkdir -p out
+          cp app/build/outputs/apk/debug/app-debug.apk out/FlashOdin.apk
+          ls -lh out/FlashOdin.apk
+
+      - name: Upload FlashOdin.apk for download in Actions
+        uses: actions/upload-artifact@v4
+        with:
+          name: FlashOdin-APK
+          path: ${{ steps.detect_dir.outputs.dir }}/out/FlashOdin.apk
+          retention-days: 90
+
+      - name: Publish direct FlashOdin.apk to GitHub Releases
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="latest-apk"
+          APK_PATH="${{ steps.detect_dir.outputs.dir }}/out/FlashOdin.apk"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" "$APK_PATH" --clobber
+          else
+            gh release create "$TAG" "$APK_PATH" \
+              --title "FlashOdin Native Android APK" \
+              --notes "نسخه نیتیو اندروید فلش‌ادین (Kotlin + UsbManager + Odin v3 + ADB + Fastboot)"
+          fi
