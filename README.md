@@ -1,85 +1,95 @@
 <div align="center">
 
-# FlashOdin - Mobile-to-Mobile OTG Firmware Flasher 📱⚡
-### اپلیکیشن فلش رام سامسونگ با موبایل (بدون نیاز به کامپیوتر)
+# OTG FlashTool — Mobile-to-Mobile USB Firmware Flasher
 
-[🇺🇸 English](#-english) | [🇮🇷 فارسی](#-فارسی)
+### اپلیکیشن نیتیو فلش موبایل به موبایل از طریق کابل OTG (بدون نیاز به کامپیوتر و روت)
+
+[![Latest Release](https://img.shields.io/github/v/release/MasterTeniment/otg-flasher?include_prereleases&label=Download%20APK&color=2563EB)](https://github.com/MasterTeniment/otg-flasher/releases)
+[![Android API](https://img.shields.io/badge/Android-5.0%2B%20(API%2021%E2%80%9334)-3DDC84?logo=android&logoColor=white)](https://developer.android.com/)
+[![Languages](https://img.shields.io/badge/Languages-English%20%7C%20%D9%81%D8%A7%D8%B1%D8%B3%DB%8C-0EA5E9)](#)
+
+[English](#english) • [فارسی](#فارسی) • [Community & Socials](#connect-with-teniment)
 
 </div>
 
 ---
 
-## 🇺🇸 English
+## English
 
-**FlashOdin** is a lightweight, open-source Android utility designed to flash firmware packages onto Samsung devices directly from another Android phone using an OTG cable—eliminating the need for a PC.
+**OTG FlashTool** (`com.otgflashtool.app`) is an independent, open-source native Android application built with **Kotlin** and **Jetpack Compose** that allows developers and repair technicians to flash firmware, inspect PIT partition tables, and run **ADB / Fastboot** commands on a second Android device directly over a **USB OTG cable** — with **no PC and no Root required**.
 
-### ✨ Features
-* **PC-Free Flashing:** Flash firmware directly from one Android device to another via USB OTG.
-* **No Root Required:** Operates entirely using standard Android USB Host APIs (`android.hardware.usb`) on the host device.
-* **Standard Package Support:** Compatible with `.tar` and `.tar.md5` firmware archives (AP, BL, CP, CSC).
-* **Safe File Selection:** Uses Android's native Storage Access Framework (SAF) without requiring invasive full-storage permissions.
-* **Real-Time Progress & Logs:** Live transfer progress bar and detailed protocol logs during flashing.
+### Key Features
 
-### 📋 Prerequisites
-1. **Host Device:** An Android phone/tablet (Android 7.0+) with **USB OTG** support.
-2. **Target Device:** A compatible Samsung device booted into **Download Mode (Odin Mode)**.
-3. **Hardware:** A reliable USB OTG adapter/cable (Type-C to Type-C or OTG adapter + USB data cable).
-4. **Firmware:** Valid firmware files downloaded locally on the host device.
+- **4-File Firmware Flasher (Download Mode v2 & v3)**
+  - Supports **BL**, **AP**, **CP**, and **CSC / HOME_CSC** slots (`.tar`, `.tar.md5`, `.lz4`, `.img`, `.bin`).
+  - Automatic **PIT partition table** inspection and smart partition mapping.
+  - Broad hardware compatibility from Android 5.0 (API 21) to Android 14 (API 34), including legacy Micro-USB hosts and older v2 targets.
+  - Android `USBFS`-safe 16 KiB chunked bulk streaming and O(1) `FileChannel` TAR scanning for large 3–5 GB `AP` images.
+- **ADB & Fastboot over USB OTG**
+  - One-tap reboot to **Download Mode**, **Fastboot**, or **Recovery**, plus interactive **ADB Shell**.
+  - Direct **Fastboot** `.img` partition flashing (`boot`, `recovery`, `vbmeta`, etc.).
+- **Bilingual Interface (English + Persian / فارسی)**
+  - First-launch language selector with live `LTR` / `RTL` switching anytime inside **Settings** or the top bar.
+- **Built-in Step-by-Step Guide**
+  - Correct OTG cable direction diagram, legacy Micro-USB host tips, and an expandable tutorial for enabling **Developer Options** and **USB Debugging**.
+- **Google Play Policy-Compliant Design**
+  - Uses official **Android USB Host API (`UsbManager`)** exclusively — no Root required and zero host OS modifications.
+  - Uses **Storage Access Framework (`SAF`)** — no `MANAGE_EXTERNAL_STORAGE` permission.
+  - Runs an Android **Foreground Service (`dataSync`)** with live progress notifications and `WakeLock`.
+  - Hosts **zero** copyrighted firmware/ROM files — users select their own local files.
+  - Mandatory first-launch Safety Warning & Liability Disclaimer.
 
-### 🚀 How to Use
-1. Download the latest APK from the [Releases](https://github.com/MasterTeniment/otg-flasher/releases) section and install it on your **Host** device.
-2. Boot your **Target** device into **Download Mode**.
-3. Connect both devices using your OTG cable and grant USB permission when prompted.
-4. Tap **Select Firmware** to load your `.tar` or `.tar.md5` file(s).
-5. Verify the connection status and tap **Start Flash**.
-6. Wait until the process finishes and the target device reboots automatically.
+### Correct OTG Cable Connection
 
-### 🛠️ Building from Source
-    git clone https://github.com/MasterTeniment/otg-flasher.git
-    cd otg-flasher
-    ./gradlew assembleDebug
+| Phone | Cable End |
+| :--- | :--- |
+| **Host Phone** (sending firmware files) | Connect the **OTG Adapter** end here |
+| **Target Phone** (receiving firmware) | Connect the **regular USB charging cable** end here |
 
-### ⚠️ Disclaimer
-* **Use at your own risk.** Flashing firmware carries inherent risks, including data loss, soft/hard bricking, or voiding your device warranty.
-* *This project is an independent open-source tool and is not affiliated with, endorsed by, or associated with Samsung Electronics.*
+> **Recommended:** Enable **Developer Options** and **USB Debugging** on the target phone beforehand (required for ADB; recommended before Download Mode flashing).
+
+### Download
+
+Download the latest compiled APK directly from the **[GitHub Releases](https://github.com/MasterTeniment/otg-flasher/releases)** page.
 
 ---
 
 <div dir="rtl">
 
-## 🇮🇷 فارسی
+## فارسی
 
-**FlashOdin** یک ابزار سبک و متن‌باز (Open-Source) برای اندروید است که به شما امکان می‌دهد فایل‌های رام (Firmware) گوشی‌های سامسونگ را مستقیماً از طریق یک گوشی اندرویدی دیگر و با استفاده از کابل OTG فلش بزنید؛ بدون اینکه نیازی به کامپیوتر یا لپ‌تاپ داشته باشید.
+**فلش‌تول OTG** (`com.otgflashtool.app`) یک اپلیکیشن نیتیو و متن‌باز اندروید (ساخته‌شده با **Kotlin** و **Jetpack Compose**) برای فلش رام‌های ۴ فایله (`BL / AP / CP / CSC`)، خواندن جدول پارتیشن `PIT` و اجرای دستورات **ADB** و **Fastboot** روی گوشی دوم از طریق کابل **USB OTG** — **بدون نیاز به کامپیوتر و بدون نیاز به روت** است.
 
-### ✨ ویژگی‌ها و امکانات
-* **فلش بدون نیاز به کامپیوتر:** انتقال و فلش مستقیم رام از موبایل به موبایل از طریق پورت USB OTG.
-* **بدون نیاز به روت (No Root):** عملکرد کاملاً استاندارد با استفاده از رابط‌های رسمی USB اندروید روی گوشی مبدا.
-* **پشتیبانی از فایل‌های استاندارد:** سازگار با پکیج‌های رام با فرمت `.tar` و `.tar.md5` (فایل‌های AP، BL، CP و CSC).
-* **انتخاب ایمن فایل‌ها:** استفاده از سیستم فایل‌پیکر استاندارد اندروید (SAF) بدون نیاز به دسترسی‌های حساس به کل حافظه.
-* **نمایش زنده روند فلش و لاگ‌ها:** نوار پیشرفت لحظه‌ای به همراه گزارش دقیق مراحل ارتباط با دستگاه.
+### امکانات کلیدی
+- پشتیبانی کامل از **فلش ۴ فایله** (`.tar`، `.tar.md5` و `.lz4`) در پروتکل‌های **Download Mode نسخه v2 و v3**
+- سازگار با اندروید ۵ تا اندروید ۱۴ (گوشی‌های قدیمی Micro-USB و مدل‌های جدید Type-C)
+- بخش اختصاصی **ADB** (انتقال تک‌کلیکی به دانلود مود، ریکاوری و فست‌بوت + Shell) و **Fastboot**
+- **دو‌زبانه کامل (فارسی و انگلیسی)** با انتخاب زبان در اولین اجرا و قابل تغییر در تنظیمات
+- **راهنمای جامع داخلی** شامل جهت صحیح کابل OTG و کادر کشویی آموزش فعال‌سازی Developer Options و USB Debugging
+- طراحی کاملاً منطبق با قوانین گوگل‌پلی (`UsbManager` رسمی، انتخاب فایل با `SAF`، سرویس پس‌زمینه `Foreground Service` و بدون میزبانی رام)
 
-### 📋 پیش‌نیازها
-1. **گوشی مبدا (Host):** یک گوشی یا تبلت اندرویدی (اندروید ۷ به بالا) با پشتیبانی از قابلیت **USB OTG**.
-2. **گوشی مقصد (Target):** دستگاه سامسونگ که در حالت **Download Mode (حالت ادین)** قرار گرفته باشد.
-3. **کابل رابط:** کابل تبدیل OTG سالم و باکیفیت (تایپ‌سی به تایپ‌سی یا تبدیل OTG همراه با کابل دیتای استاندارد).
-4. **فایل رام:** فایل‌های رام معتبر و سازگار با مدل گوشی مقصد که در حافظه گوشی مبدا ذخیره شده باشند.
+### جهت صحیح اتصال کابل OTG
+- **گوشی مبدا (گوشی که فایل را می‌ریزد):** سر **تبدیل OTG** باید به این گوشی وصل شود.
+- **گوشی مقصد (گوشی که فایل رویش نصب می‌شود):** سر **کابل شارژر عادی** باید به این گوشی وصل شود.
 
-### 🚀 راهنمای استفاده
-1. آخرین نسخه فایل نصب (APK) را از بخش [Releases](https://github.com/MasterTeniment/otg-flasher/releases) دانلود کرده و روی **گوشی مبدا** نصب کنید.
-2. **گوشی مقصد** را خاموش کرده و به حالت **Download Mode** ببرید.
-3. دو گوشی را با کابل OTG به یکدیگر متصل کنید و دسترسی USB نمایش داده‌شده را تایید نمایید.
-4. گزینه **Select Firmware** را بزنید و فایل(های) رام `.tar` یا `.tar.md5` را انتخاب کنید.
-5. پس از اطمینان از شناسایی دستگاه، دکمه **Start Flash** را لمس کنید.
-6. تا پایان کامل عملیات و ری‌استارت خودکار گوشی مقصد، اتصال کابل را قطع نکنید.
+> **توصیه:** ترجیحاً قبل از شروع، گزینه‌های **Developer Options** و **USB Debugging** را در تنظیمات گوشی مقصد فعال کنید (برای ADB ضروری و برای Download Mode توصیه‌شده است).
 
-### ⚠️ سلب مسئولیت و نکات ایمنی
-* **مسئولیت استفاده از این نرم‌افزار بر عهده کاربر است.** عملیات فلش رام همواره با ریسک‌هایی مانند از دست رفتن اطلاعات، خاموش شدن دستگاه (Brick) یا ابطال گارانتی همراه است.
-* پیش از شروع کار، از شارژ کافی گوشی مبدا (حداقل ۵۰ درصد) و سالم بودن کابل رابط مطمئن شوید تا در میانه کار ارتباط قطع نشود.
-* *این پروژه یک ابزار مستقل و متن‌باز است و هیچ‌گونه وابستگی یا ارتباطی با شرکت سامسونگ ندارد.*
+### دانلود آخرین نسخه APK
+برای دانلود مستقیم فایل نصبی اندروید وارد صفحه **[Releases](https://github.com/MasterTeniment/otg-flasher/releases)** شوید.
 
 </div>
 
 ---
 
-## 📄 License
-Distributed under the **MIT License**. See `LICENSE` for more information.
+## Connect with Teniment
+
+[![YouTube](https://img.shields.io/badge/YouTube-@teniment-FF0000?style=for-the-badge&logo=youtube&logoColor=white)](https://youtube.com/@teniment?si=7e8G_RFO-C4ffA--)
+[![Telegram](https://img.shields.io/badge/Telegram-@TenimentApps-26A5E4?style=for-the-badge&logo=telegram&logoColor=white)](https://t.me/TenimentApps)
+[![Instagram](https://img.shields.io/badge/Instagram-@tenimenttech-E4405F?style=for-the-badge&logo=instagram&logoColor=white)](https://www.instagram.com/tenimenttech?fqnt=MXV6MzltMmZ6eWlyYw==)
+[![Facebook](https://img.shields.io/badge/Facebook-Teniment-1877F2?style=for-the-badge&logo=facebook&logoColor=white)](https://www.facebook.com/share/1A6BybCG6b/)
+
+---
+
+## Disclaimer / سلب مسئولیت
+
+This software is an independent, open-source technical utility intended for developers and repair technicians. Flashing firmware carries inherent risks (including data loss or device bricking if incorrect firmware is used). Users assume full responsibility when using this tool on any external target device. This project is not affiliated with or endorsed by any smartphone manufacturer.
