@@ -1,0 +1,75 @@
+name: Prepare Repository for F-Droid (Unpack & Tag)
+
+on:
+  workflow_dispatch:
+    inputs:
+      create_tag:
+        description: 'Create and push Git version tag (e.g. v2.6.0) for F-Droid'
+        required: true
+        default: 'true'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
+
+permissions:
+  contents: write
+
+jobs:
+  unpack-and-clean:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Unpack Android source ZIP to root and remove non-source files
+        run: |
+          set -e
+          ZIP_FILE=$(ls -1 *FlashOdin*.zip *OTGFlashTool*.zip *.zip 2>/dev/null | head -n 1 || true)
+          if [ -n "$ZIP_FILE" ]; then
+            echo "Unpacking $ZIP_FILE directly into repository root..."
+            if [ -f "README.md" ]; then
+              unzip -o "$ZIP_FILE" -x ".github/*" "README.md"
+            else
+              unzip -o "$ZIP_FILE" -x ".github/*"
+            fi
+            rm -f "$ZIP_FILE"
+          else
+            echo "No ZIP archive found in root — running cleanup and tagging only."
+          fi
+
+          rm -f IASL.cmd banner_art.txt build-android-apk data.bin dataHlp.bin extensions.bin
+
+          echo "Repository root contents:"
+          ls -la
+
+      - name: Commit F-Droid repository structure and push version tag
+        run: |
+          set -e
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          VERSION=$(grep -E 'versionName\s*=' app/build.gradle.kts | head -n 1 | sed -E 's/.*"([^"]+)".*/\1/')
+          TAG="v${VERSION}"
+          echo "Detected Android versionName: ${VERSION} (tag: ${TAG})"
+
+          git add -A
+          if ! git diff --cached --quiet; then
+            git commit -m "chore(f-droid): unpack native Android source to root and clean binaries (${TAG})"
+            git push origin HEAD
+          else
+            echo "No file changes to commit."
+          fi
+
+          if [ "${{ inputs.create_tag }}" = "true" ] && [ -n "$VERSION" ]; then
+            if git rev-parse "$TAG" >/dev/null 2>&1; then
+              echo "Tag $TAG already exists — skipping tag creation."
+            else
+              git tag -a "$TAG" -m "Release OTG FlashTool ${TAG}"
+              git push origin "$TAG"
+              echo "Created and pushed tag $TAG"
+            fi
+          fi
