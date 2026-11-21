@@ -1,103 +1,108 @@
 <div align="center">
 
-# OTG FlashTool — Mobile-to-Mobile USB Firmware Flasher ⚡📱
+# OTG FlashTool — Mobile-to-Mobile USB Firmware Flasher 📱⚡
+### اپلیکیشن نیتیو فلش موبایل به موبایل با کابل OTG (بدون کامپیوتر و بدون روت)
 
-### اپلیکیشن نیتیو فلش رام، ADB و Fastboot موبایل به موبایل از طریق کابل OTG (بدون نیاز به کامپیوتر و روت)
+<p>
+  <a href="#english"><img src="https://img.shields.io/badge/🇺🇸%20English-Read%20in%20English-2563EB?style=for-the-badge" alt="English"></a>
+  <a href="#persian"><img src="https://img.shields.io/badge/🇮🇷%20فارسی-راهنمای%20فارسی-10B981?style=for-the-badge" alt="فارسی"></a>
+</p>
 
-[![Latest Release](https://img.shields.io/github/v/release/MasterTeniment/otg-flasher?include_prereleases&label=Download%20APK&color=2563EB)](https://github.com/MasterTeniment/otg-flasher/releases)
-[![Android API](https://img.shields.io/badge/Android-5.0%2B%20(API%2021%E2%80%9334)-3DDC84?logo=android&logoColor=white)](https://developer.android.com/)
-[![Kotlin & Compose](https://img.shields.io/badge/Built%20with-Kotlin%20%26%20Jetpack%20Compose-7F52FF?logo=kotlin&logoColor=white)](https://developer.android.com/jetpack/compose)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-
-[🇺🇸 English](#english-docs) • [🇮🇷 فارسی](#persian-docs) • [🌐 Socials & Community](#connect-with-teniment)
+[![Download Latest APK](https://img.shields.io/github/v/release/MasterTeniment/otg-flasher?include_prereleases&label=Download%20APK&color=2563EB)](https://github.com/MasterTeniment/otg-flasher/releases)
+[![Android](https://img.shields.io/badge/Android-5.0%2B%20(API%2021%E2%80%9334)-3DDC84?logo=android&logoColor=white)](https://developer.android.com/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-F59E0B.svg)](LICENSE)
 
 </div>
 
 ---
 
-<a id="english-docs"></a>
+<a id="english"></a>
+
 ## 🇺🇸 English
 
-**OTG FlashTool** (`com.otgflashtool.app`) is an independent, open-source native Android application built with **Kotlin** and **Jetpack Compose**. It enables developers and repair technicians to flash 4-file firmware packages, inspect `PIT` partition tables, and execute **ADB / Fastboot** commands on a second Android device directly over a **USB OTG cable** — with **zero PC and zero Root required**.
+**OTG FlashTool** (`com.otgflashtool.app`) is an independent, open-source native Android utility built with **Kotlin** and **Jetpack Compose** that lets you flash firmware packages, inspect PIT partition tables, and execute **ADB / Fastboot** commands on a second Android device directly over a **USB OTG cable** — eliminating the need for a PC.
 
-### ✨ Key Features
+### ✨ Features
+* **PC-Free Flashing:** Flash firmware directly from one Android device to another via USB OTG.
+* **No Root Required:** Operates exclusively through the official Android USB Host API (`android.hardware.usb`) with zero changes to the host OS.
+* **4-File Package Support (Download Mode v2 & v3):** Supports **BL**, **AP**, **CP**, and **CSC / HOME_CSC** slots (`.tar`, `.tar.md5`, `.lz4`, `.img`, `.bin`) plus automatic **PIT** reading.
+* **ADB & Fastboot Included:** One-tap reboot to Download Mode, Fastboot, or Recovery, interactive ADB Shell, and direct Fastboot `.img` partition flashing.
+* **Safe File Selection (SAF):** Uses Android's native Storage Access Framework (`ACTION_OPEN_DOCUMENT`) without requesting `MANAGE_EXTERNAL_STORAGE`.
+* **Foreground Service Protection:** Runs a `dataSync` Foreground Service with live progress notification and `WakeLock` to prevent interruptions mid-flash.
+* **Bilingual App UI (English & Persian):** First-launch language selector with instant `LTR` / `RTL` switching anytime inside Settings.
 
-- **4-File Firmware Flasher (Download Mode v2 & v3)**
-  - Full support for **BL**, **AP**, **CP**, and **CSC / HOME_CSC** slots (`.tar`, `.tar.md5`, `.lz4`, `.img`, `.bin`).
-  - Automatic **PIT partition table** inspection and smart partition mapping.
-  - Broad device compatibility from **Android 5.0 (API 21)** to **Android 14 (API 34)**, including legacy Micro-USB hosts and older v2 target devices.
-  - Android `USBFS`-safe **16 KiB chunked bulk streaming** and $O(1)$ `FileChannel` TAR scanning to handle massive 3–5 GB `AP` images smoothly without `OutOfMemory` crashes.
-- **ADB & Fastboot over USB OTG**
-  - One-tap reboot to **Download Mode**, **Fastboot**, or **Recovery**, plus an interactive **ADB Shell**.
-  - Direct **Fastboot** `.img` partition flashing (`boot`, `recovery`, `vbmeta`, etc.).
-- **Native Bilingual UI (English + فارسی)**
-  - First-launch language selector with live `LTR` / `RTL` layout switching anytime from the top bar or **Settings**.
-- **Built-in Interactive Guide**
-  - Visual OTG cable direction guide, legacy Micro-USB host tips, and an expandable tutorial for enabling **Developer Options** and **USB Debugging**.
-- **Google Play Policy-Compliant Architecture**
-  - Uses official **Android USB Host API (`UsbManager`)** exclusively — no Root required and zero host OS modifications.
-  - Uses **Storage Access Framework (`SAF`)** — no invasive `MANAGE_EXTERNAL_STORAGE` permission.
-  - Runs an Android **Foreground Service (`dataSync`)** with live progress notifications and `WakeLock` to prevent mid-flash interruption.
-  - Hosts **zero** copyrighted firmware/ROM files — users select their own local files.
+### 📋 Prerequisites
+1. **Host Device:** An Android phone/tablet (**Android 5.0+**) with **USB OTG Host** support and at least **40–50% battery**.
+2. **Target Device:** An Android device booted into **Download Mode**, **Fastboot**, or with **USB Debugging** enabled (for ADB).
+3. **Hardware:** A reliable **USB OTG adapter** + standard USB charging/data cable (or Type-C to Type-C OTG cable).
+4. **Firmware:** Valid firmware files saved locally on the host device (this app does not host or distribute any firmware files).
 
-### 🔌 Correct OTG Cable Connection
+### 🔌 Correct OTG Cable Direction
+* **Host Phone** (sending the firmware files): Plug the **OTG Adapter** end into this phone.
+* **Target Phone** (receiving the firmware): Plug the **regular USB charging cable** end into this phone.
 
-| Device Role | Cable End to Connect |
-| :--- | :--- |
-| **Host Phone** (sending firmware / running app) | Connect the **OTG Adapter** end here |
-| **Target Phone** (receiving firmware) | Connect the **standard USB data/charging cable** end here |
+> **Tip:** It is recommended to enable **Developer Options** and **USB Debugging** on the target phone beforehand (mandatory for ADB; recommended for Download Mode). A step-by-step expandable tutorial is built into the app's **Guide** tab.
 
-> **Tip:** Enable **Developer Options** and **USB Debugging** on the target phone beforehand (mandatory for ADB commands; recommended before Download Mode flashing).
+### 🚀 How to Use
+1. Download the latest APK from the **[Releases](https://github.com/MasterTeniment/otg-flasher/releases)** page and install it on your **Host** device.
+2. Boot your **Target** device into **Download Mode** (press Volume Up at the warning screen until `Downloading...` appears).
+3. Connect both devices following the cable direction above, tap **Scan & Connect**, and approve the USB permission dialog.
+4. Select your local firmware slot(s) (**BL**, **AP**, **CP**, **CSC / HOME_CSC**).
+5. Verify the connection and PIT table, then tap **Start Flash**.
+6. Do **not** unplug the cable until `PASS!` appears and the target device reboots automatically.
 
-### 📥 Download & Build
+### 🛠️ Building from Source
+    git clone https://github.com/MasterTeniment/otg-flasher.git
+    cd otg-flasher
+    gradle assembleDebug
 
-- **Pre-compiled APK:** Download the latest release directly from the **[GitHub Releases](https://github.com/MasterTeniment/otg-flasher/releases)** page.
-- **Build from Source:**
-      git clone https://github.com/MasterTeniment/otg-flasher.git
-      cd otg-flasher
-      ./gradlew assembleDebug
+### ⚠️ Disclaimer
+* **Use at your own risk.** Flashing firmware carries inherent risks, including data loss, soft/hard bricking, or voiding your device warranty.
+* *This project is an independent open-source utility and is not affiliated with, endorsed by, or associated with any smartphone manufacturer.*
 
 ---
 
-<a id="persian-docs"></a>
+<a id="persian"></a>
+
 <div dir="rtl">
 
 ## 🇮🇷 فارسی
 
-**فلش‌تول OTG** (`com.otgflashtool.app`) یک اپلیکیشن نیتیو، مستقل و متن‌باز برای اندروید (توسعه‌یافته با **Kotlin** و **Jetpack Compose**) است که به توسعه‌دهندگان و تعمیرکاران موبایل اجازه می‌دهد رام‌های ۴ فایله (`BL / AP / CP / CSC`) را فلش بزنند، جدول پارتیشن `PIT` را بررسی کنند و دستورات **ADB** و **Fastboot** را روی یک گوشی اندرویدی دیگر مستقیماً از طریق کابل **USB OTG** اجرا نمایند — **بدون نیاز به کامپیوتر و بدون نیاز به روت**.
+**فلش‌تول OTG** (`com.otgflashtool.app`) یک ابزار نیتیو و متن‌باز (Open-Source) برای اندروید (ساخته‌شده با **Kotlin** و **Jetpack Compose**) است که به شما امکان می‌دهد فایل‌های رام را مستقیماً از یک گوشی اندرویدی دیگر با کابل **USB OTG** فلش بزنید، جدول پارتیشن `PIT` را بخوانید و دستورات **ADB** و **Fastboot** را اجرا کنید — بدون اینکه نیازی به کامپیوتر یا لپ‌تاپ داشته باشید.
 
-### ✨ امکانات و ویژگی‌های کلیدی
+### ✨ ویژگی‌ها و امکانات
+* **فلش بدون نیاز به کامپیوتر:** انتقال و فلش مستقیم رام از موبایل به موبایل از طریق پورت USB OTG.
+* **بدون نیاز به روت (No Root):** عملکرد کاملاً استاندارد با استفاده از رابط رسمی `UsbManager` اندروید و بدون هیچ تغییری در سیستم‌عامل گوشی مبدا.
+* **پشتیبانی از رام‌های ۴ فایله (Download Mode v2 و v3):** دارای ۴ اسلات مجزای **BL**، **AP**، **CP** و **CSC / HOME_CSC** با پشتیبانی از `.tar`، `.tar.md5`، `.lz4`، `.img` و `.bin` به همراه خواندن خودکار **PIT**.
+* **ابزار کامل ADB و Fastboot:** انتقال تک‌کلیکی به Download Mode، Fastboot و Recovery، اجرای دستورات ADB Shell و فلش مستقیم پارتیشن‌های `.img` در Fastboot.
+* **انتخاب ایمن فایل‌ها (SAF):** استفاده از فایل‌پیکر استاندارد اندروید (`ACTION_OPEN_DOCUMENT`) بدون درخواست دسترسی حساس به کل حافظه.
+* **محافظت در پس‌زمینه (Foreground Service):** دارای سرویس `dataSync` با نوتیفیکیشن زنده پیشرفت و `WakeLock` برای جلوگیری از قطع شدن وسط فلش.
+* **دو‌زبانه کامل (فارسی و انگلیسی):** انتخاب زبان در اولین اجرا و امکان تغییر زبان در هر زمان از بخش تنظیمات برنامه.
 
-- **فلشر کامل رام‌های ۴ فایله (پروتکل Download Mode نسخه v2 و v3)**
-  - پشتیبانی از تمامی بخش‌های **BL**، **AP**، **CP** و **CSC / HOME_CSC** با فرمت‌های `.tar`، `.tar.md5`، `.lz4`، `.img` و `.bin`.
-  - خواندن خودکار **جدول پارتیشن PIT** و نگاشت هوشمند پارتیشن‌ها.
-  - سازگاری گسترده از **اندروید ۵.۰ (API 21)** تا **اندروید ۱۴ (API 34)**؛ شامل گوشی‌های قدیمی با پورت Micro-USB و دستگاه‌های جدید Type-C.
-  - انتقال ایمن داده‌ها در بسته‌های **۱۶ کیلوبایتی** سازگار با `USBFS` اندروید و اسکن سریع فایل‌های TAR با `FileChannel` برای پردازش فایل‌های حجیم ۳ تا ۵ گیگابایتی `AP` بدون خطای پر شدن حافظه رم.
-- **اجرای ADB و Fastboot از طریق کابل OTG**
-  - ریبوت تک‌کلیکی دستگاه مقصد به حالت‌های **Download Mode**، **Fastboot** یا **Recovery** به همراه **ADB Shell** تعاملی.
-  - فلش مستقیم فایل‌های پارتیشن `.img` در حالت **Fastboot** (مانند `boot`، `recovery`، `vbmeta` و...).
-- **رابط کاربری دو‌زبانه نیتیو (فارسی و انگلیسی)**
-  - انتخاب زبان در اولین اجرای برنامه با قابلیت تغییر آنی چیدمان راست‌به‌چپ (`RTL`) و چپ‌به‌راست (`LTR`) از نوار بالا یا بخش تنظیمات.
-- **راهنمای جامع داخلی**
-  - نمایش جهت صحیح اتصال کابل OTG، نکات مربوط به گوشی‌های قدیمی Micro-USB و آموزش گام‌به‌گام فعال‌سازی **Developer Options** و **USB Debugging**.
-- **معماری کاملاً منطبق با قوانین گوگل‌پلی**
-  - استفاده انحصاری از رابط رسمی **Android USB Host API (`UsbManager`)** بدون نیاز به روت و بدون دستکاری سیستم‌عامل گوشی مبدا.
-  - انتخاب فایل‌ها از طریق **Storage Access Framework (`SAF`)** بدون درخواست دسترسی حساس به کل حافظه (`MANAGE_EXTERNAL_STORAGE`).
-  - اجرای عملیات در قالب سرویس پس‌زمینه استاندارد (**Foreground Service**) همراه با نوتیفیکیشن پیشرفت زنده و `WakeLock` برای جلوگیری از قطع شدن ارتباط در حین فلش.
-  - عدم میزبانی هیچ‌گونه فایل رام دارای کپی‌رایت (کاربر فایل‌های شخصی خود را از حافظه انتخاب می‌کند).
+### 📋 پیش‌نیازها
+1. **گوشی مبدا (Host):** یک گوشی یا تبلت اندرویدی (**اندروید ۵.۰ به بالا**) با پشتیبانی از **USB OTG** و شارژ حداقل **۴۰ تا ۵۰ درصد**.
+2. **گوشی مقصد (Target):** گوشی دوم در حالت **Download Mode**، **Fastboot** یا با **USB Debugging** روشن (برای ADB).
+3. **کابل رابط:** تبدیل **OTG** سالم و باکیفیت + کابل دیتای شارژر استاندارد (یا کابل Type-C به Type-C).
+4. **فایل رام:** فایل‌های رام معتبر و سازگار با مدل گوشی مقصد روی حافظه گوشی مبدا (این برنامه هیچ فایل رامی را میزبانی نمی‌کند).
 
-### 🔌 جهت صحیح اتصال کابل OTG
+### 🔌 جهت صحیح اتصال کابل OTG (بسیار مهم)
+* **گوشی مبدا** (گوشی که فایل رام داخل آن است و عملیات فلش را انجام می‌دهد): سر **تبدیل OTG** باید به این گوشی وصل شود.
+* **گوشی مقصد** (گوشی که فایل رویش نصب می‌شود): سر **کابل شارژر عادی** باید به این گوشی وصل شود.
 
-| نقش گوشی | سرِ کابل که باید متصل شود |
-| :--- | :--- |
-| **گوشی مبدا** (گوشی که برنامه روی آن نصب است و فایل را می‌فرستد) | سرِ **تبدیل OTG** باید به این گوشی وصل شود |
-| **گوشی مقصد** (گوشی که قرار است فلش شود) | سرِ **کابل دیتای معمولی (کابل شارژر)** باید به این گوشی وصل شود |
+> **توصیه:** ترجیحاً قبل از شروع، گزینه‌های **Developer Options** و **USB Debugging** را در تنظیمات گوشی مقصد فعال کنید (برای ADB ضروری و برای Download Mode توصیه‌شده است). آموزش گام‌به‌گام فعال‌سازی آن در تب **راهنما**ی خود برنامه قرار دارد.
 
-> **توصیه:** ترجیحاً پیش از شروع کار، گزینه‌های **Developer Options** و **USB Debugging** را در تنظیمات گوشی مقصد فعال کنید (برای دستورات ADB ضروری و برای فلش در Download Mode توصیه‌شده است).
+### 🚀 راهنمای استفاده
+1. آخرین نسخه فایل نصبی (APK) را از بخش **[Releases](https://github.com/MasterTeniment/otg-flasher/releases)** دانلود کرده و روی **گوشی مبدا** نصب کنید.
+2. **گوشی مقصد** را خاموش کرده و وارد حالت **Download Mode** شوید (در صفحه هشدار، یک‌بار ولوم بالا را بزنید تا عبارت `Downloading...` نمایش داده شود).
+3. دو گوشی را مطابق جهت بالا با کابل OTG به هم وصل کنید، دکمه **اسکن و اتصال** را بزنید و مجوز USB را تایید نمایید.
+4. فایل‌های رام خود را در اسلات‌های مربوطه (**BL**، **AP**، **CP**، **CSC / HOME_CSC**) انتخاب کنید.
+5. پس از تایید اتصال و خوانده شدن جدول PIT، دکمه **شروع فلش** را لمس کنید.
+6. تا نمایش پیام `PASS!` و ریستارت خودکار گوشی مقصد، به هیچ عنوان کابل را جدا نکنید.
 
-### 📥 دانلود آخرین نسخه APK
-
-برای دانلود مستقیم فایل نصبی (APK) وارد صفحه **[GitHub Releases](https://github.com/MasterTeniment/otg-flasher/releases)** شوید.
+### ⚠️ سلب مسئولیت و نکات ایمنی
+* **مسئولیت استفاده از این نرم‌افزار کاملاً بر عهده کاربر است.** عملیات فلش رام همواره با ریسک‌هایی مانند از دست رفتن اطلاعات، بریک شدن دستگاه (Brick) یا ابطال گارانتی همراه است.
+* پیش از شروع کار، از شارژ کافی گوشی مبدا (حداقل ۴۰ تا ۵۰ درصد) و سالم بودن کابل رابط مطمئن شوید.
+* *این پروژه یک ابزار مستقل و متن‌باز است و هیچ‌گونه وابستگی یا ارتباط رسمی با هیچ شرکت سازنده موبایلی ندارد.*
 
 </div>
 
@@ -105,7 +110,7 @@
 
 <div align="center">
 
-## Connect with Teniment 🌐
+### 🌐 Connect with Teniment · ارتباط با ما
 
 [![YouTube](https://img.shields.io/badge/YouTube-@teniment-FF0000?style=for-the-badge&logo=youtube&logoColor=white)](https://youtube.com/@teniment?si=7e8G_RFO-C4ffA--)
 [![Telegram](https://img.shields.io/badge/Telegram-@TenimentApps-26A5E4?style=for-the-badge&logo=telegram&logoColor=white)](https://t.me/TenimentApps)
@@ -116,17 +121,5 @@
 
 ---
 
-## ⚠️ Disclaimer / سلب مسئولیت
-
-**EN:** This software is an independent, open-source technical utility intended for developers and repair technicians. Flashing firmware carries inherent risks (including data loss or device bricking if incorrect or corrupted firmware is used). Ensure your host device has at least 50% battery and use a reliable cable. Users assume full responsibility when using this tool on any external target device. This project is not affiliated with, endorsed by, or associated with Samsung Electronics or any other smartphone manufacturer.
-
-<div dir="rtl">
-
-**FA:** این نرم‌افزار یک ابزار فنی مستقل و متن‌باز است که برای توسعه‌دهندگان و تعمیرکاران طراحی شده است. عملیات فلش رام همواره با ریسک‌هایی (از جمله از دست رفتن اطلاعات یا بریک شدن دستگاه در صورت انتخاب رام اشتباه یا ناقص) همراه است. پیش از شروع، از شارژ حداقل ۵۰ درصدی گوشی مبدا و سالم بودن کابل رابط مطمئن شوید. مسئولیت کامل استفاده از این ابزار بر عهده کاربر است و این پروژه هیچ‌گونه وابستگی یا ارتباطی با شرکت سامسونگ یا سایر سازندگان موبایل ندارد.
-
-</div>
-
----
-
 ## 📄 License
-Distributed under the **MIT License**. See `LICENSE` for more information.
+Distributed under the **MIT License**. See [`LICENSE`](LICENSE) for more information.
