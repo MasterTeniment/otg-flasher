@@ -1,4 +1,4 @@
-name: Build FlashOdin Native Android APK
+name: Build OTG FlashTool Android APK
 
 on:
   push:
@@ -30,7 +30,7 @@ jobs:
           elif [ -f "settings.gradle.kts" ]; then
             echo "dir=." >> "$GITHUB_OUTPUT"
           else
-            ZIP_FILE=$(ls -1 *FlashOdin*.zip *.zip 2>/dev/null | head -n 1 || true)
+            ZIP_FILE=$(ls -1 *OTGFlashTool*.zip *FlashOdin*.zip *.zip 2>/dev/null | head -n 1 || true)
             if [ -n "$ZIP_FILE" ]; then
               echo "Extracting $ZIP_FILE..."
               mkdir -p extracted-android
@@ -49,7 +49,7 @@ jobs:
                 fi
               fi
             else
-              echo "Error: Please upload FlashOdin-Android-Native.zip to your repository root."
+              echo "Error: Please upload the Android source .zip (or unzipped Kotlin project) to your repository root."
               exit 1
             fi
           fi
@@ -59,35 +59,39 @@ jobs:
         with:
           gradle-version: '8.7'
 
-      - name: Build FlashOdin Debug APK (Installable on Android)
+      - name: Build OTGFlashTool Debug APK (Installable on Android)
         working-directory: ${{ steps.detect_dir.outputs.dir }}
         run: gradle assembleDebug --stacktrace
 
-      - name: Prepare FlashOdin.apk artifact
+      - name: Prepare OTGFlashTool.apk artifact
         working-directory: ${{ steps.detect_dir.outputs.dir }}
         run: |
           mkdir -p out
-          cp app/build/outputs/apk/debug/app-debug.apk out/FlashOdin.apk
-          ls -lh out/FlashOdin.apk
+          cp app/build/outputs/apk/debug/app-debug.apk out/OTGFlashTool.apk
+          ls -lh out/OTGFlashTool.apk
 
-      - name: Upload FlashOdin.apk for download in Actions
+      - name: Upload OTGFlashTool.apk for download in Actions
         uses: actions/upload-artifact@v4
         with:
-          name: FlashOdin-APK
-          path: ${{ steps.detect_dir.outputs.dir }}/out/FlashOdin.apk
+          name: OTGFlashTool-APK
+          path: ${{ steps.detect_dir.outputs.dir }}/out/OTGFlashTool.apk
           retention-days: 90
 
-      - name: Publish direct FlashOdin.apk to GitHub Releases
+      - name: Publish direct OTGFlashTool.apk to GitHub Releases
         continue-on-error: true
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           TAG="latest-apk"
-          APK_PATH="${{ steps.detect_dir.outputs.dir }}/out/FlashOdin.apk"
+          APK_PATH="${{ steps.detect_dir.outputs.dir }}/out/OTGFlashTool.apk"
+          TITLE="OTG FlashTool — Native Android APK"
+          NOTES="Native Android mobile-to-mobile USB OTG firmware flasher (Download Mode v2/v3, ADB & Fastboot · Bilingual EN/FA · Google Play policy-compliant)."
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" "$APK_PATH" --clobber
+            gh release edit "$TAG" --title "$TITLE" --notes "$NOTES"
+            gh release delete-asset "$TAG" "FlashOdin.apk" --yes || true
           else
             gh release create "$TAG" "$APK_PATH" \
-              --title "FlashOdin Native Android APK" \
-              --notes "نسخه نیتیو اندروید فلش‌ادین (Kotlin + UsbManager + Odin v3 + ADB + Fastboot)"
+              --title "$TITLE" \
+              --notes "$NOTES"
           fi
