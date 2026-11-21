@@ -5,8 +5,12 @@
 
 <p>
   <a href="#english"><img src="https://img.shields.io/badge/🇺🇸%20English-Read%20in%20English-2563EB?style=for-the-badge" alt="English"></a>
-  <a href="#persian"><img src="https://img.shields.io/badge/🇮🇷%20فارسی-راهنمای%20فارسی-10B981?style=for-the-badge" alt="فارسی"></a>
+  <a href="#persian"><img src="https://img.shields.io/badge/🇮🇷%20Persian-Read%20in%20Farsi-10B981?style=for-the-badge" alt="Persian"></a>
 </p>
+
+**[🇺🇸 English Guide](#english) &nbsp;&nbsp;|&nbsp;&nbsp; [🇮🇷 راهنمای فارسی](#persian)**
+
+<br/>
 
 [![Download Latest APK](https://img.shields.io/github/v/release/MasterTeniment/otg-flasher?include_prereleases&label=Download%20APK&color=2563EB)](https://github.com/MasterTeniment/otg-flasher/releases)
 [![Android](https://img.shields.io/badge/Android-5.0%2B%20(API%2021%E2%80%9334)-3DDC84?logo=android&logoColor=white)](https://developer.android.com/)
