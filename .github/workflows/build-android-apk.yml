@@ -31,7 +31,7 @@ jobs:
           elif [ -f "android-native/settings.gradle.kts" ]; then
             echo "dir=android-native" >> "$GITHUB_OUTPUT"
           else
-            ZIP_FILE=$(ls -1 *OTGFlashTool*.zip *FlashOdin*.zip *.zip 2>/dev/null | head -n 1 || true)
+            ZIP_FILE=$(ls -1 *OTGFlashTool*.zip *.zip 2>/dev/null | head -n 1 || true)
             if [ -n "$ZIP_FILE" ]; then
               echo "Extracting $ZIP_FILE..."
               mkdir -p extracted-android
@@ -95,7 +95,6 @@ jobs:
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" "$APK_PATH" --clobber
             gh release edit "$TAG" --title "$TITLE" --notes "$NOTES"
-            gh release delete-asset "$TAG" "FlashOdin.apk" --yes || true
           else
             gh release create "$TAG" "$APK_PATH" \
               --title "$TITLE" \
