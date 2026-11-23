@@ -1,0 +1,10 @@
+OTG FlashTool is an open-source, offline-only Android utility built with Kotlin and Jetpack Compose for mobile-to-mobile firmware flashing and device servicing over a USB OTG cable—no PC and no root required.
+
+Key Features:
+- Direct USB Host Communication: Uses the official Android USB Host API (android.hardware.usb) without root access or proprietary drivers.
+- Download Mode v2 & v3 Support: Flash 4-file firmware packages (BL, AP, CP, CSC / HOME_CSC) in .tar, .tar.md5, .lz4, .img, and .bin formats, plus read and inspect device PIT partition tables.
+- Built-in ADB & Fastboot: Execute ADB shell commands, reboot target devices into Download Mode, Recovery, or Fastboot, and flash Fastboot partition images directly from your host phone.
+- Safe File Picker (SAF): Uses Android Storage Access Framework without requesting broad all-files storage access.
+- Foreground Service Protection: Maintains a persistent dataSync notification and WakeLock during transfers to prevent interruptions.
+- Bilingual Interface: Built-in English (LTR) and Persian (RTL) UI with instant switching.
+- Privacy First: 100% offline with zero network permissions, zero ads, and zero trackers.

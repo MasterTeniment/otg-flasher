@@ -1,0 +1,1 @@
+Flash firmware, inspect PIT, and run ADB/Fastboot over USB OTG without a PC.
