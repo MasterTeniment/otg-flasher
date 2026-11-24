@@ -1,0 +1,2 @@
+- Added Magisk Root Toolkit in the ADB tab: direct link to latest official topjohnwu/Magisk GitHub Releases (preserving zero INTERNET permissions), local SAF Magisk .apk to flashable .zip converter with PK header validation, and real USB OTG ADB Sideload (.zip) flasher supporting AOSP sideload-v2 random-access blocks.
+- Added bilingual Magisk root & sideload/fastboot patching guide with unlocked bootloader prerequisites and backup warnings.

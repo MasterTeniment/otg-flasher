@@ -1,0 +1,3 @@
+v2.7.0:
+- Added official Fastboot Bootloader / OEM Unlocking controls (flashing get_unlock_ability, flashing unlock, flashing lock) with mandatory confirmation warnings and bilingual documentation.
+- Added developer & support email (masterteniment@gmail.com) with direct mailto and one-tap copy buttons in Settings & About.

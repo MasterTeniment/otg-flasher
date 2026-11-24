@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Vendor ID 0x04E8 (1256) Download Mode & Composite USB PIDs -->
+    <usb-device vendor-id="1256" product-id="26717" /> <!-- 0x685D Download Mode Main -->
+    <usb-device vendor-id="1256" product-id="26819" /> <!-- 0x68C3 Composite Download Mode -->
+    <usb-device vendor-id="1256" product-id="26113" /> <!-- 0x6601 Legacy Download Mode -->
+    <usb-device vendor-id="1256" product-id="26718" /> <!-- 0x685E CDC Modem -->
+    <usb-device vendor-id="1256" product-id="26720" /> <!-- 0x6860 MTP + ACM -->
+    <usb-device vendor-id="1256" product-id="26793" /> <!-- 0x68A9 Exynos DL -->
+    <usb-device vendor-id="1256" /> <!-- Catch-all Samsung VID -->
+
+    <!-- Universal Android ADB Interface (Class 0xFF, Subclass 0x42, Protocol 0x01) -->
+    <usb-device class="255" subclass="66" protocol="1" />
+
+    <!-- Universal Android Fastboot Interface (Class 0xFF, Subclass 0x42, Protocol 0x03) -->
+    <usb-device class="255" subclass="66" protocol="3" />
+
+    <!-- USB CDC Communication (0x02) & CDC Data (0x0A) -->
+    <usb-device class="2" />
+    <usb-device class="10" />
+
+    <!-- Major Android OEM Vendor IDs (Google, Xiaomi, OnePlus, Motorola, Qualcomm, MediaTek) -->
+    <usb-device vendor-id="6353" />  <!-- 0x18D1 Google -->
+    <usb-device vendor-id="10007" /> <!-- 0x2717 Xiaomi / Poco / Redmi -->
+    <usb-device vendor-id="10864" /> <!-- 0x2A70 OnePlus -->
+    <usb-device vendor-id="8888" />  <!-- 0x22B8 Motorola -->
+    <usb-device vendor-id="1478" />  <!-- 0x05C6 Qualcomm -->
+    <usb-device vendor-id="3725" />  <!-- 0x0E8D MediaTek -->
+</resources>
