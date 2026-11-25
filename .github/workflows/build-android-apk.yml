@@ -33,6 +33,11 @@ jobs:
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
         run: |
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "Error: KEYSTORE_BASE64 secret is empty"
+            exit 1
+          fi
+
           echo "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/release.jks"
           test -s "$RUNNER_TEMP/release.jks"
 
@@ -43,17 +48,36 @@ jobs:
           RELEASE_STORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           RELEASE_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           RELEASE_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-        run: gradle assembleRelease --stacktrace
+        run: |
+          test -f "$RELEASE_STORE_FILE"
+          test -n "$RELEASE_STORE_PASSWORD"
+          test -n "$RELEASE_KEY_ALIAS"
+          test -n "$RELEASE_KEY_PASSWORD"
+
+          gradle assembleRelease --stacktrace
 
       - name: Prepare APK
         run: |
           mkdir -p out
-          cp OTGFlashTool-Android-Native/app/build/outputs/apk/release/app-release.apk out/OTGFlashTool-v2.8.0.apk
+
+          cp OTGFlashTool-Android-Native/app/build/outputs/apk/release/app-release.apk \
+            out/OTGFlashTool-v2.8.0.apk
+
           ls -lh out/
 
       - name: Verify APK signature
         run: |
-          apksigner verify --verbose out/OTGFlashTool-v2.8.0.apk
+          SDK="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+
+          APKSIGNER=$(find "$SDK/build-tools" \
+            -type f -name apksigner 2>/dev/null | sort -V | tail -n 1)
+
+          if [ -z "$APKSIGNER" ]; then
+            echo "Error: apksigner not found"
+            exit 1
+          fi
+
+          "$APKSIGNER" verify --verbose out/OTGFlashTool-v2.8.0.apk
 
       - name: Upload signed APK artifact
         uses: actions/upload-artifact@v4
@@ -67,4 +91,13 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release upload "${GITHUB_REF_NAME}" out/OTGFlashTool-v2.8.0.apk --clobber
+          TAG="${GITHUB_REF_NAME}"
+          APK="out/OTGFlashTool-v2.8.0.apk"
+
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" "$APK" --clobber
+          else
+            gh release create "$TAG" "$APK" \
+              --title "OTG FlashTool $TAG" \
+              --notes "Signed Android APK for OTG FlashTool."
+          fi
