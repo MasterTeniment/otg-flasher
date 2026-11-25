@@ -322,7 +322,7 @@ class AdbProtocol(private val binding: UsbBinding) {
                     val offset = blockIdx * blockSize.toLong()
                     val want = min(blockSize.toLong(), maxOf(0L, fileSize - offset)).toInt()
                     val payload: ByteArray
-                    if (channel != null) {
+                    if (fis != null && channel != null) {
                         channel.position(offset)
                         var readTotal = 0
                         while (readTotal < want) {
