@@ -28,7 +28,12 @@ data class UsbBinding(
     fun resetDataInterface(onLog: ((String) -> Unit)? = null): Boolean {
         return try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                val ok = connection.setInterface(dataInterface)
+                var ok = connection.setInterface(dataInterface)
+                if (!ok) {
+                    clearEndpointHalts()
+                    connection.claimInterface(dataInterface, true)
+                    ok = connection.setInterface(dataInterface)
+                }
                 onLog?.invoke("تنظیم alt-setting اینترفیس داده #${dataInterface.id} (SET_INTERFACE=$ok).")
                 ok
             } else {
@@ -40,15 +45,21 @@ data class UsbBinding(
         }
     }
 
-    fun enableCdcControlFallback(onLog: ((String) -> Unit)? = null) {
-        val ctrl = controlInterface ?: return
-        try {
+    fun enableCdcControlFallback(onLog: ((String) -> Unit)? = null): Boolean {
+        val ctrl = controlInterface ?: return false
+        return try {
             val claimed = connection.claimInterface(ctrl, true)
-            val ctrlIndex = if (claimed) ctrl.id else 0
-            val dtrRes = connection.controlTransfer(0x21, 0x22, 0x0003, ctrlIndex, null, 0, 350)
-            onLog?.invoke("تلاش جایگزین CDC-ACM (Ctrl #$ctrlIndex · claimed=$claimed · DTR/RTS=$dtrRes).")
+            if (!claimed) {
+                // Never send CDC DTR/RTS to wIndex=0 on an unclaimed interface (avoids -1 / control pipe stall)
+                onLog?.invoke("تلاش جایگزین CDC-ACM صرف‌نظر شد (اینترفیس کنترلی #${ctrl.id} تصاحب نشد).")
+                return false
+            }
+            val dtrRes = connection.controlTransfer(0x21, 0x22, 0x0003, ctrl.id, null, 0, 350)
+            onLog?.invoke("تلاش جایگزین CDC-ACM (Ctrl #${ctrl.id} · claimed=true · DTR/RTS=$dtrRes).")
+            dtrRes >= 0
         } catch (e: Exception) {
             onLog?.invoke("هشدار CDC-ACM جایگزین: ${e.message}")
+            false
         }
     }
 
@@ -61,13 +72,22 @@ data class UsbBinding(
         }
     }
 
-    fun close() {
-        try {
-            controlInterface?.let { connection.releaseInterface(it) }
-            connection.releaseInterface(dataInterface)
-            connection.close()
-        } catch (_: Exception) {
+    fun drainStaleRx(maxPackets: Int = 4) {
+        val buf = ByteArray(maxOf(64, epIn.maxPacketSize))
+        for (i in 0 until maxPackets) {
+            val r = try {
+                connection.bulkTransfer(epIn, buf, buf.size, 40)
+            } catch (_: Exception) {
+                -1
+            }
+            if (r <= 0) break
         }
+    }
+
+    fun close() {
+        runCatching { controlInterface?.let { connection.releaseInterface(it) } }
+        runCatching { connection.releaseInterface(dataInterface) }
+        runCatching { connection.close() }
     }
 }
 

@@ -1,0 +1,3 @@
+- Fixed Download Mode reconnect & handshake recovery when a target device is already in an active LOKE session (probes SESSION_BEGIN after clearing endpoint halts and draining stale RX before attempting CDC-ACM reset).
+- Fixed Bulk OUT (-1) stall caused by sending CDC DTR/RTS control requests on an unclaimed control interface (now skipped unless claimInterface succeeds).
+- Added initial Bulk OUT endpoint-halt recovery retry, avoided tearing down an already-active USB session on duplicate USB_DEVICE_ATTACHED broadcasts, and closed failed UsbBinding handles cleanly.

@@ -141,7 +141,7 @@ private const val FACEBOOK_URL = "https://www.facebook.com/share/1A6BybCG6b/"
 private const val TELEGRAM_URL = "https://t.me/TenimentApps"
 private const val MAGISK_RELEASES_URL = "https://github.com/topjohnwu/Magisk/releases/latest"
 private const val DEVELOPER_EMAIL = "masterteniment@gmail.com"
-private const val APP_VERSION_LABEL = "v2.8.0"
+private const val APP_VERSION_LABEL = "v2.8.1"
 
 data class PickedFile(
     val uri: Uri,
@@ -205,8 +205,13 @@ class MainActivity : ComponentActivity() {
                     val device = extractUsbDevice(intent)
                     refreshUsbDevices()
                     if (device != null) {
-                        addLog("External USB device attached: ${NativeUsbCore.describeDevice(device)}")
-                        requestPermissionAndConnect(device)
+                        val alreadyBound = activeBinding?.device?.deviceId == device.deviceId
+                        if (alreadyBound) {
+                            addLog("External USB device attached (session already active): ${NativeUsbCore.describeDevice(device)}")
+                        } else {
+                            addLog("External USB device attached: ${NativeUsbCore.describeDevice(device)}")
+                            requestPermissionAndConnect(device)
+                        }
                     }
                 }
 
@@ -386,6 +391,8 @@ class MainActivity : ComponentActivity() {
         statusMessage = strings().usbConnecting
 
         Thread {
+            var pendingBinding: UsbBinding? = null
+            var promoted = false
             try {
                 // Close any previous binding silently on worker thread without overwriting statusMessage
                 activeBinding?.close()
@@ -398,6 +405,7 @@ class MainActivity : ComponentActivity() {
                 }
 
                 val binding = NativeUsbCore.bindDevice(usbManager, device) { addLog(it) }
+                pendingBinding = binding
 
                 when (binding.protocol) {
                     DetectedProtocol.DOWNLOAD_MODE -> {
@@ -416,6 +424,7 @@ class MainActivity : ComponentActivity() {
                             addLog("PIT auto-read warning: ${err.message}")
                             emptyList()
                         }
+                        promoted = true
                         runOnUiThread {
                             activeBinding = binding
                             activeDownloadMode = downloader
@@ -431,6 +440,7 @@ class MainActivity : ComponentActivity() {
                         }
                         val adb = AdbProtocol(binding)
                         val banner = adb.connectAndAuth { addLog(it) }
+                        promoted = true
                         runOnUiThread {
                             activeBinding = binding
                             activeAdb = adb
@@ -446,6 +456,7 @@ class MainActivity : ComponentActivity() {
                         val fb = FastbootProtocol(binding)
                         val prod = runCatching { fb.sendCommand("getvar:product").message }.getOrDefault("")
                         addLog("Fastboot ready (product=${prod.ifBlank { "unknown" }}).")
+                        promoted = true
                         runOnUiThread {
                             activeBinding = binding
                             activeFastboot = fb
@@ -459,6 +470,9 @@ class MainActivity : ComponentActivity() {
                     }
                 }
             } catch (e: Exception) {
+                if (!promoted) {
+                    pendingBinding?.close()
+                }
                 addLog("Connection error: ${e.message ?: "unknown"}")
                 runOnUiThread {
                     statusMessage = e.message ?: "USB connection error"
