@@ -292,6 +292,8 @@ class DownloadModeProtocol(private val binding: UsbBinding) {
     }
 
     private var supportsCustomPartSize = false
+    private var sessionActive = false
+    private var cachedHandshakeInfo: DownloadModeHandshakeInfo? = null
 
     private fun buildCmd(cmd: Int, sub: Int, a1: Int = 0, a2: Int = 0, a3: Int = 0): ByteArray {
         val buf = ByteBuffer.allocate(PACKET_SIZE).order(ByteOrder.LITTLE_ENDIAN)
@@ -463,10 +465,35 @@ class DownloadModeProtocol(private val binding: UsbBinding) {
         }
 
         onLog("نشست Download Mode v$protoVer.0 آماده است (بسته: 128KB · USBFS: 16KB).")
-        return DownloadModeHandshakeInfo(protoVer, OTG_FILE_PART_SIZE, supportsCustomPartSize)
+        val info = DownloadModeHandshakeInfo(protoVer, OTG_FILE_PART_SIZE, supportsCustomPartSize)
+        sessionActive = true
+        cachedHandshakeInfo = info
+        return info
+    }
+
+    fun ensureHandshake(onLog: (String) -> Unit): DownloadModeHandshakeInfo {
+        val cached = cachedHandshakeInfo
+        if (sessionActive && cached != null) {
+            return cached
+        }
+        return handshake(onLog)
+    }
+
+    fun endSessionOnly(onLog: (String) -> Unit) {
+        if (!sessionActive) return
+        try {
+            writeAll(buildCmd(CMD_END, END_SESSION), timeoutMs = 4000)
+            runCatching { readReply(8, timeoutMs = 4000) }
+            onLog("نشست Download Mode به‌صورت ایمن بسته شد (آماده اتصال مجدد بدون ریبوت).")
+        } catch (e: Exception) {
+            onLog("هشدار پایان نشست: ${e.message}")
+        } finally {
+            sessionActive = false
+        }
     }
 
     fun dumpPit(onLog: (String) -> Unit): List<PitEntry> {
+        ensureHandshake(onLog)
         onLog("درخواست خواندن جدول پارتیشن (PIT)...")
         writeAll(buildCmd(CMD_PIT, PIT_DUMP_REQ))
         val sizeRep = ByteBuffer.wrap(readReply(8)).order(ByteOrder.LITTLE_ENDIAN)
@@ -725,6 +752,7 @@ class DownloadModeProtocol(private val binding: UsbBinding) {
         if (slots.isEmpty()) {
             throw IllegalStateException("هیچ فایلی در اسلات‌های BL / AP / CP / CSC انتخاب نشده است.")
         }
+        ensureHandshake(onLog)
         if (pit.isEmpty()) {
             throw IllegalStateException("جدول PIT گوشی خوانده نشده است. ابتدا PIT را بخوانید یا دوباره متصل شوید.")
         }
@@ -804,6 +832,7 @@ class DownloadModeProtocol(private val binding: UsbBinding) {
         onLog("ارسال دستور پایان نشست Download Mode (EndSession)...")
         writeAll(buildCmd(CMD_END, END_SESSION))
         readReply(8, timeoutMs = 15000)
+        sessionActive = false
 
         if (autoReboot) {
             onLog("ارسال فرمان راه‌اندازی مجدد گوشی (Auto Reboot)...")

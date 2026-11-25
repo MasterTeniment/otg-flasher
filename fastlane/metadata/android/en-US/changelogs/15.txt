@@ -1,0 +1,2 @@
+- Switched Download Mode USB attachment to PC-Odin-style lazy handshake (Added!): connecting/unplugging/replugging the OTG cable no longer opens or locks the LOKE session until Read PIT or Start Flash is pressed.
+- Standalone Read PIT now closes the Download Mode session cleanly via END_SESSION (0x67, 0x00) afterwards, allowing seamless cable reconnect or immediate flashing without rebooting the target phone.

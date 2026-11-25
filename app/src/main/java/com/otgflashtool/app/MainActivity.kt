@@ -141,7 +141,7 @@ private const val FACEBOOK_URL = "https://www.facebook.com/share/1A6BybCG6b/"
 private const val TELEGRAM_URL = "https://t.me/TenimentApps"
 private const val MAGISK_RELEASES_URL = "https://github.com/topjohnwu/Magisk/releases/latest"
 private const val DEVELOPER_EMAIL = "masterteniment@gmail.com"
-private const val APP_VERSION_LABEL = "v2.8.1"
+private const val APP_VERSION_LABEL = "v2.8.2"
 
 data class PickedFile(
     val uri: Uri,
@@ -409,27 +409,14 @@ class MainActivity : ComponentActivity() {
 
                 when (binding.protocol) {
                     DetectedProtocol.DOWNLOAD_MODE -> {
-                        runOnUiThread {
-                            progressFraction = 0.50f
-                            progressLabel = "2/3 · Handshake (Download Mode)..."
-                        }
                         val downloader = DownloadModeProtocol(binding)
-                        val hs = downloader.handshake { addLog(it) }
-
-                        runOnUiThread {
-                            progressFraction = 0.80f
-                            progressLabel = "3/3 · PIT..."
-                        }
-                        val pit = runCatching { downloader.dumpPit { addLog(it) } }.getOrElse { err ->
-                            addLog("PIT auto-read warning: ${err.message}")
-                            emptyList()
-                        }
+                        addLog("پورت Download Mode آماده شد (همانند Odin کامپیوتر: Handshake هنگام «شروع فلش» یا «خواندن PIT» انجام می‌شود تا قطع‌ووصل کابل نشست را قفل نکند).")
                         promoted = true
                         runOnUiThread {
                             activeBinding = binding
                             activeDownloadMode = downloader
-                            pitEntries = pit
-                            statusMessage = "Download Mode v${hs.protocolVersion}.0 (PIT: ${pit.size}) — ${NativeUsbCore.describeDevice(device)}"
+                            pitEntries = emptyList()
+                            statusMessage = "Download Mode آماده (Added!) — ${NativeUsbCore.describeDevice(device)}"
                         }
                     }
 
@@ -824,7 +811,10 @@ class MainActivity : ComponentActivity() {
                                 progressLabel = s.readPitBtn
                                 try {
                                     val entries = withContext(Dispatchers.IO) {
-                                        dl.dumpPit { addLog(it) }
+                                        dl.ensureHandshake { addLog(it) }
+                                        val list = dl.dumpPit { addLog(it) }
+                                        runCatching { dl.endSessionOnly { addLog(it) } }
+                                        list
                                     }
                                     pitEntries = entries
                                     statusMessage = s.pitTableTitle(entries.size)
@@ -862,6 +852,7 @@ class MainActivity : ComponentActivity() {
                                 var lastNotifPct = -1
                                 try {
                                     withContext(Dispatchers.IO) {
+                                        dl.ensureHandshake { addLog(it) }
                                         val pit = pitEntries.ifEmpty {
                                             dl.dumpPit { addLog(it) }.also { loaded ->
                                                 runOnUiThread { pitEntries = loaded }
