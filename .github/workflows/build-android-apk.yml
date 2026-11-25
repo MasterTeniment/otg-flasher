@@ -1,9 +1,10 @@
-name: Build OTG FlashTool Android APK
+
+name: Build and Sign OTG FlashTool APK
 
 on:
   push:
-    branches: [ main, master ]
-    tags: [ 'v*' ]
+    branches: [main, master]
+    tags: ['v*']
   workflow_dispatch:
 
 permissions:
@@ -23,80 +24,47 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Detect Android Gradle project
-        id: detect_dir
-        run: |
-          if [ -f "settings.gradle.kts" ]; then
-            echo "dir=." >> "$GITHUB_OUTPUT"
-          elif [ -f "android-native/settings.gradle.kts" ]; then
-            echo "dir=android-native" >> "$GITHUB_OUTPUT"
-          else
-            ZIP_FILE=$(ls -1 *OTGFlashTool*.zip *.zip 2>/dev/null | head -n 1 || true)
-            if [ -n "$ZIP_FILE" ]; then
-              echo "Extracting $ZIP_FILE..."
-              mkdir -p extracted-android
-              unzip -oq "$ZIP_FILE" -d extracted-android
-              if [ -f "extracted-android/settings.gradle.kts" ]; then
-                echo "dir=extracted-android" >> "$GITHUB_OUTPUT"
-              elif [ -f "extracted-android/android-native/settings.gradle.kts" ]; then
-                echo "dir=extracted-android/android-native" >> "$GITHUB_OUTPUT"
-              else
-                FOUND=$(find extracted-android -maxdepth 3 -name "settings.gradle.kts" | head -n 1 || true)
-                if [ -n "$FOUND" ]; then
-                  echo "dir=$(dirname "$FOUND")" >> "$GITHUB_OUTPUT"
-                else
-                  echo "Error: settings.gradle.kts not found inside $ZIP_FILE"
-                  exit 1
-                fi
-              fi
-            else
-              echo "Error: settings.gradle.kts not found in repository root or android-native/."
-              exit 1
-            fi
-          fi
-
       - name: Set up Gradle 8.7
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.7'
 
-      - name: Verify F-Droid compatible Release build (unsigned)
-        working-directory: ${{ steps.detect_dir.outputs.dir }}
+      - name: Restore release keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+        run: |
+          echo "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/release.jks"
+          test -s "$RUNNER_TEMP/release.jks"
+
+      - name: Build signed Release APK
+        working-directory: OTGFlashTool-Android-Native
+        env:
+          RELEASE_STORE_FILE: ${{ runner.temp }}/release.jks
+          RELEASE_STORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          RELEASE_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          RELEASE_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: gradle assembleRelease --stacktrace
 
-      - name: Build installable Debug APK
-        working-directory: ${{ steps.detect_dir.outputs.dir }}
-        run: gradle assembleDebug --stacktrace
-
-      - name: Prepare APK artifacts
-        working-directory: ${{ steps.detect_dir.outputs.dir }}
+      - name: Prepare APK
         run: |
           mkdir -p out
-          cp app/build/outputs/apk/debug/app-debug.apk out/OTGFlashTool.apk
-          cp app/build/outputs/apk/release/app-release-unsigned.apk out/OTGFlashTool-release-unsigned.apk
+          cp OTGFlashTool-Android-Native/app/build/outputs/apk/release/app-release.apk out/OTGFlashTool-v2.8.0.apk
           ls -lh out/
 
-      - name: Upload APK artifacts in Actions
+      - name: Verify APK signature
+        run: |
+          apksigner verify --verbose out/OTGFlashTool-v2.8.0.apk
+
+      - name: Upload signed APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: OTGFlashTool-APKs
-          path: ${{ steps.detect_dir.outputs.dir }}/out/*.apk
+          name: OTGFlashTool-v2.8.0-signed
+          path: out/OTGFlashTool-v2.8.0.apk
           retention-days: 90
 
-      - name: Publish direct OTGFlashTool.apk to GitHub Releases
-        continue-on-error: true
+      - name: Publish APK to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          TAG="latest-apk"
-          APK_PATH="${{ steps.detect_dir.outputs.dir }}/out/OTGFlashTool.apk"
-          TITLE="OTG FlashTool — Native Android APK"
-          NOTES="Native Android mobile-to-mobile USB OTG firmware flasher (Download Mode v2/v3, ADB & Fastboot · Bilingual EN/FA · 100% FOSS & F-Droid ready)."
-          if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release upload "$TAG" "$APK_PATH" --clobber
-            gh release edit "$TAG" --title "$TITLE" --notes "$NOTES"
-          else
-            gh release create "$TAG" "$APK_PATH" \
-              --title "$TITLE" \
-              --notes "$NOTES"
-          fi
+          gh release upload "${GITHUB_REF_NAME}" out/OTGFlashTool-v2.8.0.apk --clobber
