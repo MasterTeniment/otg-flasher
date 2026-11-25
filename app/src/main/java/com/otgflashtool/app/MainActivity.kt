@@ -141,7 +141,7 @@ private const val FACEBOOK_URL = "https://www.facebook.com/share/1A6BybCG6b/"
 private const val TELEGRAM_URL = "https://t.me/TenimentApps"
 private const val MAGISK_RELEASES_URL = "https://github.com/topjohnwu/Magisk/releases/latest"
 private const val DEVELOPER_EMAIL = "masterteniment@gmail.com"
-private const val APP_VERSION_LABEL = "v2.8.2"
+private const val APP_VERSION_LABEL = "v2.8.3"
 
 data class PickedFile(
     val uri: Uri,

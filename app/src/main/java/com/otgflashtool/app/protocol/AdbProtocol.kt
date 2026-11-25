@@ -30,11 +30,13 @@ class AdbProtocol(private val binding: UsbBinding) {
 
         private const val VERSION = 0x01000001
         private const val MAX_DATA = 256 * 1024
+        private const val ANDROID_USBFS_MAX_CHUNK = 16384
     }
 
     private data class Packet(val cmd: Int, val arg0: Int, val arg1: Int, val payload: ByteArray)
 
     private var localIdCounter = 1
+    private var remoteMaxData = 4096
 
     private fun checksum(data: ByteArray): Int {
         var sum = 0
@@ -54,9 +56,12 @@ class AdbProtocol(private val binding: UsbBinding) {
 
         val hOut = binding.connection.bulkTransfer(binding.epOut, header, 24, 10000)
         if (hOut != 24) throw IllegalStateException("خطای ارسال هدر ADB ($hOut)")
-        if (payload.isNotEmpty()) {
-            val pOut = binding.connection.bulkTransfer(binding.epOut, payload, payload.size, 10000)
-            if (pOut != payload.size) throw IllegalStateException("خطای ارسال داده ADB ($pOut)")
+        var sent = 0
+        while (sent < payload.size) {
+            val slice = min(ANDROID_USBFS_MAX_CHUNK, payload.size - sent)
+            val pOut = binding.connection.bulkTransfer(binding.epOut, payload, sent, slice, 10000)
+            if (pOut <= 0) throw IllegalStateException("خطای ارسال داده ADB ($pOut در بایت $sent/${payload.size})")
+            sent += pOut
         }
     }
 
@@ -156,8 +161,9 @@ class AdbProtocol(private val binding: UsbBinding) {
         for (i in 0 until 6) {
             val pkt = readPacket(if (sentSig) 45000 else 12000)
             if (pkt.cmd == A_CNXN) {
+                remoteMaxData = if (pkt.arg1 > 0) maxOf(4096, min(pkt.arg1, MAX_DATA)) else 4096
                 val banner = String(pkt.payload, Charsets.UTF_8).trimEnd('\u0000')
-                onLog("اتصال ADB برقرار شد: $banner")
+                onLog("اتصال ADB برقرار شد (maxdata=$remoteMaxData): $banner")
                 return banner
             }
             if (pkt.cmd == A_AUTH && pkt.arg0 == AUTH_TOKEN) {
@@ -197,8 +203,8 @@ class AdbProtocol(private val binding: UsbBinding) {
 
     /**
      * Sends a flashable .zip (e.g. Magisk-.zip or OTA/ROM .zip) to a target device in
-     * Recovery ADB Sideload mode using AOSP sideload-v2 (random-access 64 KiB blocks)
-     * with automatic fallback to legacy streaming sideload.
+     * Recovery ADB Sideload mode using AOSP sideload-host:<file_size>:<block_size> (ADB >= 1.0.32)
+     * with automatic fallback to legacy streaming sideload:<file_size> for pre-1.0.32 recoveries.
      */
     fun sideloadUri(
         resolver: ContentResolver,
@@ -209,23 +215,25 @@ class AdbProtocol(private val binding: UsbBinding) {
     ) {
         require(fileSize > 0L) { "حجم فایل زیپ نامعتبر است." }
         val blockSize = 65536
+        val wrteLimit = maxOf(4096, min(remoteMaxData, blockSize))
         val localId = localIdCounter++
-        onLog("شروع ADB Sideload (sideload-v2:$fileSize)...")
-        sendPacket(A_OPEN, localId, 0, "sideload-v2:$fileSize\u0000".toByteArray(Charsets.US_ASCII))
+        onLog("شروع ADB Sideload (sideload-host:$fileSize:$blockSize · maxdata=$wrteLimit)...")
+        sendPacket(A_OPEN, localId, 0, "sideload-host:$fileSize:$blockSize\u0000".toByteArray(Charsets.US_ASCII))
 
         val openResp = readPacket(30000)
         if (openResp.cmd == A_CLSE) {
-            // Fallback to legacy streaming sideload:<size>
-            onLog("ریکاورى از sideload-v2 پشتیبانی نکرد — تلاش با حالت کلاسیک sideload:$fileSize...")
+            // Confirm CLSE and fall back to legacy streaming sideload:<size> (pre-1.0.32 recoveries only)
+            runCatching { sendPacket(A_CLSE, localId, openResp.arg0) }
+            onLog("حالت sideload-host رد شد — تلاش با حالت کلاسیک sideload:$fileSize...")
             val legacyId = localIdCounter++
             sendPacket(A_OPEN, legacyId, 0, "sideload:$fileSize\u0000".toByteArray(Charsets.US_ASCII))
             val legResp = readPacket(20000)
             if (legResp.cmd != A_OKAY) {
-                throw IllegalStateException("گوشی مقصد در حالت ADB Sideload نیست (پاسخ: 0x%X).".format(legResp.cmd))
+                throw IllegalStateException("گوشی مقصد در حالت ADB Sideload نیست (در ریکاوری TWRP وارد Advanced → ADB Sideload شوید، کد پاسخ: 0x%X).".format(legResp.cmd))
             }
             val remoteId = legResp.arg0
             resolver.openInputStream(uri)?.use { input ->
-                val buf = ByteArray(blockSize)
+                val buf = ByteArray(wrteLimit)
                 var sentTotal = 0L
                 while (sentTotal < fileSize) {
                     val n = input.read(buf)
@@ -248,8 +256,13 @@ class AdbProtocol(private val binding: UsbBinding) {
         }
 
         val remoteId = openResp.arg0
-        val pendingMessages = ArrayDeque<String>()
+        val ctrlByteQueue = ArrayDeque<Byte>()
+        var remoteClosed = false
         var sentBlocksBytes = 0L
+
+        fun enqueueControlBytes(bytes: ByteArray) {
+            for (b in bytes) ctrlByteQueue.addLast(b)
+        }
 
         fun waitForOkayAndQueueWrte(timeoutMs: Int = 60000) {
             while (true) {
@@ -258,25 +271,31 @@ class AdbProtocol(private val binding: UsbBinding) {
                     return
                 } else if (pkt.cmd == A_WRTE && pkt.arg1 == localId) {
                     sendPacket(A_OKAY, localId, remoteId)
-                    pendingMessages.addLast(String(pkt.payload, Charsets.US_ASCII).trim('\u0000', ' ', '\r', '\n'))
+                    enqueueControlBytes(pkt.payload)
                 } else if (pkt.cmd == A_CLSE && pkt.arg1 == localId) {
-                    pendingMessages.addLast("DONEDONE")
+                    remoteClosed = true
                     return
                 }
             }
         }
 
         fun nextControlMessage(): String {
-            if (pendingMessages.isNotEmpty()) return pendingMessages.removeFirst()
-            while (true) {
-                val pkt = readPacket(120000)
+            while (ctrlByteQueue.size < 8) {
+                if (remoteClosed) return "DONEDONE"
+                val pkt = readPacket(180000)
                 if (pkt.cmd == A_WRTE && pkt.arg1 == localId) {
                     sendPacket(A_OKAY, localId, remoteId)
-                    return String(pkt.payload, Charsets.US_ASCII).trim('\u0000', ' ', '\r', '\n')
+                    enqueueControlBytes(pkt.payload)
                 } else if (pkt.cmd == A_CLSE && pkt.arg1 == localId) {
-                    return "DONEDONE"
+                    remoteClosed = true
+                    if (ctrlByteQueue.isEmpty()) return "DONEDONE"
+                    break
                 }
             }
+            val takeLen = min(8, ctrlByteQueue.size)
+            val msgBytes = ByteArray(takeLen)
+            for (i in 0 until takeLen) msgBytes[i] = ctrlByteQueue.removeFirst()
+            return String(msgBytes, Charsets.US_ASCII).trim('\u0000', ' ', '\r', '\n')
         }
 
         val pfd = runCatching { resolver.openFileDescriptor(uri, "r") }.getOrNull()
@@ -334,8 +353,15 @@ class AdbProtocol(private val binding: UsbBinding) {
                         } ?: throw IllegalStateException("خطا در خواندن بلاک $blockIdx از فایل زیپ.")
                     }
 
-                    sendPacket(A_WRTE, localId, remoteId, payload)
-                    waitForOkayAndQueueWrte()
+                    // Respect remote maxdata (e.g. 4096 on older TWRP or 256K on newer) per A_WRTE
+                    var pos = 0
+                    while (pos < payload.size) {
+                        val partLen = min(wrteLimit, payload.size - pos)
+                        val part = if (pos == 0 && partLen == payload.size) payload else payload.copyOfRange(pos, pos + partLen)
+                        sendPacket(A_WRTE, localId, remoteId, part)
+                        waitForOkayAndQueueWrte()
+                        pos += partLen
+                    }
                     sentBlocksBytes = min(fileSize, sentBlocksBytes + payload.size.toLong())
                     onProgress(sentBlocksBytes, fileSize)
                 }

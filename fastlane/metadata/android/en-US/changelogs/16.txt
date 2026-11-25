@@ -1,0 +1,2 @@
+- Fixed ADB Sideload protocol service name to AOSP standard sideload-host:<file_size>:<block_size> (fixes TWRP "You need adb 1.0.32 or newer to sideload to this device" error).
+- Added ADB A_WRTE chunking matching the target device's negotiated maxdata (e.g. 4096 bytes on older recoveries), 16 KiB USBFS bulkTransfer slicing, and 8-byte minadbd control frame buffering.
