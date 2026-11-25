@@ -1,4 +1,0 @@
-v2.6.1:
-- Unified Kotlin package namespace with applicationId (com.otgflashtool.app) and renamed internal Download Mode protocol class to DownloadModeProtocol.
-- Removed all legacy naming references across source code, Gradle configuration, ProGuard rules, and USB device filter comments while keeping 100% hardware wire-protocol compatibility.
-- Full F-Droid readiness: disabled Play dependency metadata block, text-only gradle-wrapper.properties, MIT LICENSE, and bilingual EN/FA Fastlane metadata.

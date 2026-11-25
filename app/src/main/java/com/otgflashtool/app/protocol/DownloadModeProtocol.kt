@@ -305,10 +305,20 @@ class DownloadModeProtocol(private val binding: UsbBinding) {
 
     private fun writeAll(data: ByteArray, length: Int = data.size, timeoutMs: Int = 30000) {
         var sent = 0
+        var retriedInitialHalt = false
         while (sent < length) {
             val sliceLen = min(ANDROID_USBFS_MAX_CHUNK, length - sent)
             val written = binding.connection.bulkTransfer(binding.epOut, data, sent, sliceLen, timeoutMs)
             if (written <= 0) {
+                if (sent == 0 && !retriedInitialHalt) {
+                    retriedInitialHalt = true
+                    binding.clearEndpointHalts()
+                    try {
+                        Thread.sleep(60)
+                    } catch (_: InterruptedException) {
+                    }
+                    continue
+                }
                 throw IllegalStateException(
                     "خطا در ارسال داده Bulk OUT (کد: $written در بایت $sent/$length). اگر قبلاً خطای فلش رخ داده، گوشی مقصد را با «ولوم پایین + پاور» ریستارت کرده و مجدد وارد Download Mode کنید."
                 )
@@ -337,48 +347,86 @@ class DownloadModeProtocol(private val binding: UsbBinding) {
         throw IllegalStateException("پاسخ خالی (0 بایت ZLP) از گوشی در Download Mode دریافت شد.")
     }
 
+    private fun tryBeginSession(): ByteArray? {
+        return runCatching {
+            writeAll(buildCmd(CMD_SESSION, SESSION_BEGIN, 0), timeoutMs = 4500)
+            readReply(8, timeoutMs = 6000)
+        }.getOrNull()
+    }
+
     /**
      * Heimdall-accurate session handshake supporting both Loke v2 (GT-N7100, SM-A510FD v2)
      * and Loke v3/v4 (SM-G610F, SM-A137F, modern devices):
-     * 1) Wire Handshake -> LOKE (fast 2.5s timeout; if target is already past LOKE, seamlessly recovers with SESSION_BEGIN)
-     * 2) SESSION_BEGIN (0x64, 0x00) -> decode protocol version from upper 16 bits (0x00020000 = v2, 0x00030000 = v3)
-     * 3) ONLY send SESSION_FILE_PART_SIZE (0x64, 0x05) when protocolVersion >= 3 (never on v2 like GT-N7100!)
+     * 1) Wire Handshake -> LOKE (drain stale RX first)
+     * 2) If target timed out on LOKE (e.g. already past LOKE from an earlier session), clear halts & probe SESSION_BEGIN BEFORE touching CDC DTR/RTS
+     * 3) If still unresponsive, reset data interface, safely attempt claimed CDC-ACM fallback, and retry LOKE -> SESSION_BEGIN
      */
     fun handshake(onLog: (String) -> Unit): DownloadModeHandshakeInfo {
         var lokeOk = false
         var lastReply = ""
+        var cachedSessionRep: ByteArray? = null
 
-        for (attempt in 1..2) {
-            if (attempt == 2) {
-                onLog("بازنشانی اینترفیس داده و فعال‌سازی CDC-ACM برای تلاش دوم...")
-                binding.enableCdcControlFallback(onLog)
-                binding.resetDataInterface(onLog)
-                Thread.sleep(100)
+        binding.drainStaleRx()
+
+        onLog("ارسال بسته Handshake (تلاش 1 از ۲)...")
+        try {
+            writeAll(HANDSHAKE_MAGIC, timeoutMs = 2200)
+            val rep = readReply(4, timeoutMs = 2200)
+            lastReply = String(rep, Charsets.US_ASCII).trim('\u0000', ' ', '\r', '\n')
+            if (lastReply.startsWith("LOKE")) {
+                lokeOk = true
             }
-            onLog("ارسال بسته Handshake (تلاش $attempt از ۲)...")
+        } catch (e: Exception) {
+            onLog("تلاش 1 Handshake ناموفق: ${e.message}")
+        }
+
+        // Before altering CDC control lines (which can stall Exynos S-Boot), check if target is already in an active session
+        if (!lokeOk) {
+            onLog("بررسی نشست فعال قبلی با SESSION_BEGIN پیش از بازنشانی CDC...")
+            binding.clearEndpointHalts()
+            binding.drainStaleRx()
+            val probeRep = tryBeginSession()
+            if (probeRep != null && probeRep.size >= 8) {
+                val probeCmd = ByteBuffer.wrap(probeRep).order(ByteOrder.LITTLE_ENDIAN).getInt(0)
+                if (probeCmd == CMD_SESSION) {
+                    cachedSessionRep = probeRep
+                    onLog("نشست قبلی Download Mode شناسایی و بازیابی شد!")
+                }
+            }
+        }
+
+        if (!lokeOk && cachedSessionRep == null) {
+            onLog("بازنشانی اینترفیس داده و بررسی CDC-ACM برای تلاش دوم...")
+            binding.clearEndpointHalts()
+            binding.resetDataInterface(onLog)
+            binding.enableCdcControlFallback(onLog)
+            Thread.sleep(120)
+            binding.drainStaleRx()
+
+            onLog("ارسال بسته Handshake (تلاش 2 از ۲)...")
             try {
                 writeAll(HANDSHAKE_MAGIC, timeoutMs = 2500)
                 val rep = readReply(4, timeoutMs = 2500)
                 lastReply = String(rep, Charsets.US_ASCII).trim('\u0000', ' ', '\r', '\n')
                 if (lastReply.startsWith("LOKE")) {
                     lokeOk = true
-                    break
                 }
             } catch (e: Exception) {
-                onLog("تلاش $attempt Handshake ناموفق: ${e.message}")
-                Thread.sleep(150)
+                onLog("تلاش 2 Handshake ناموفق: ${e.message}")
             }
         }
 
         if (lokeOk) {
             onLog("پاسخ LOKE دریافت شد! شروع نشست Download Mode...")
-        } else {
-            onLog("پاسخ LOKE دریافت نشد (\"$lastReply\") — بررسی فعال بودن نشست قبلی با SESSION_BEGIN...")
+        } else if (cachedSessionRep == null) {
+            onLog("پاسخ LOKE دریافت نشد (\"$lastReply\") — تلاش نهایی با SESSION_BEGIN...")
         }
 
         // BeginSession (0x64, 0x00, 0)
-        writeAll(buildCmd(CMD_SESSION, SESSION_BEGIN, 0), timeoutMs = 5000)
-        val sessionRep = readReply(8, timeoutMs = 8000)
+        val sessionRep = cachedSessionRep ?: run {
+            writeAll(buildCmd(CMD_SESSION, SESSION_BEGIN, 0), timeoutMs = 5000)
+            readReply(8, timeoutMs = 8000)
+        }
         if (sessionRep.size < 8) {
             throw IllegalStateException("پاسخ SESSION_BEGIN ناقص است (${sessionRep.size} بایت). گوشی مقصد را با ولوم پایین+پاور ریستارت و مجدد وارد Download Mode کنید.")
         }

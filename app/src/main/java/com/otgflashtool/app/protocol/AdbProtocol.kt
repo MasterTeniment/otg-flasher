@@ -1,8 +1,11 @@
 package com.otgflashtool.app.protocol
 
+import android.content.ContentResolver
+import android.net.Uri
 import android.util.Base64
 import com.otgflashtool.app.usb.UsbBinding
 import java.io.ByteArrayOutputStream
+import java.io.FileInputStream
 import java.math.BigInteger
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
@@ -189,6 +192,158 @@ class AdbProtocol(private val binding: UsbBinding) {
 
     fun reboot(target: String) {
         val localId = localIdCounter++
-        sendPacket(A_OPEN, localId, 0, "reboot:$target\u0000".toByteArray(Charsets.UTF_8))
+        sendPacket(A_OPEN, localId, 0, "reboot:$target\u0000".toByteArray(Charsets.US_ASCII))
+    }
+
+    /**
+     * Sends a flashable .zip (e.g. Magisk-.zip or OTA/ROM .zip) to a target device in
+     * Recovery ADB Sideload mode using AOSP sideload-v2 (random-access 64 KiB blocks)
+     * with automatic fallback to legacy streaming sideload.
+     */
+    fun sideloadUri(
+        resolver: ContentResolver,
+        uri: Uri,
+        fileSize: Long,
+        onLog: (String) -> Unit,
+        onProgress: (sent: Long, total: Long) -> Unit
+    ) {
+        require(fileSize > 0L) { "حجم فایل زیپ نامعتبر است." }
+        val blockSize = 65536
+        val localId = localIdCounter++
+        onLog("شروع ADB Sideload (sideload-v2:$fileSize)...")
+        sendPacket(A_OPEN, localId, 0, "sideload-v2:$fileSize\u0000".toByteArray(Charsets.US_ASCII))
+
+        val openResp = readPacket(30000)
+        if (openResp.cmd == A_CLSE) {
+            // Fallback to legacy streaming sideload:<size>
+            onLog("ریکاورى از sideload-v2 پشتیبانی نکرد — تلاش با حالت کلاسیک sideload:$fileSize...")
+            val legacyId = localIdCounter++
+            sendPacket(A_OPEN, legacyId, 0, "sideload:$fileSize\u0000".toByteArray(Charsets.US_ASCII))
+            val legResp = readPacket(20000)
+            if (legResp.cmd != A_OKAY) {
+                throw IllegalStateException("گوشی مقصد در حالت ADB Sideload نیست (پاسخ: 0x%X).".format(legResp.cmd))
+            }
+            val remoteId = legResp.arg0
+            resolver.openInputStream(uri)?.use { input ->
+                val buf = ByteArray(blockSize)
+                var sentTotal = 0L
+                while (sentTotal < fileSize) {
+                    val n = input.read(buf)
+                    if (n <= 0) break
+                    val chunk = if (n == buf.size) buf else buf.copyOf(n)
+                    sendPacket(A_WRTE, legacyId, remoteId, chunk)
+                    val ack = readPacket(60000)
+                    if (ack.cmd == A_CLSE) break
+                    sentTotal += n
+                    onProgress(min(sentTotal, fileSize), fileSize)
+                }
+            } ?: throw IllegalStateException("امکان خواندن فایل زیپ وجود ندارد.")
+            sendPacket(A_CLSE, legacyId, remoteId)
+            onLog("ارسال فایل ADB Sideload کامل شد.")
+            return
+        }
+
+        if (openResp.cmd != A_OKAY) {
+            throw IllegalStateException("گوشی مقصد آماده دریافت Sideload نیست (کد پاسخ: 0x%X).".format(openResp.cmd))
+        }
+
+        val remoteId = openResp.arg0
+        val pendingMessages = ArrayDeque<String>()
+        var sentBlocksBytes = 0L
+
+        fun waitForOkayAndQueueWrte(timeoutMs: Int = 60000) {
+            while (true) {
+                val pkt = readPacket(timeoutMs)
+                if (pkt.cmd == A_OKAY && pkt.arg1 == localId) {
+                    return
+                } else if (pkt.cmd == A_WRTE && pkt.arg1 == localId) {
+                    sendPacket(A_OKAY, localId, remoteId)
+                    pendingMessages.addLast(String(pkt.payload, Charsets.US_ASCII).trim('\u0000', ' ', '\r', '\n'))
+                } else if (pkt.cmd == A_CLSE && pkt.arg1 == localId) {
+                    pendingMessages.addLast("DONEDONE")
+                    return
+                }
+            }
+        }
+
+        fun nextControlMessage(): String {
+            if (pendingMessages.isNotEmpty()) return pendingMessages.removeFirst()
+            while (true) {
+                val pkt = readPacket(120000)
+                if (pkt.cmd == A_WRTE && pkt.arg1 == localId) {
+                    sendPacket(A_OKAY, localId, remoteId)
+                    return String(pkt.payload, Charsets.US_ASCII).trim('\u0000', ' ', '\r', '\n')
+                } else if (pkt.cmd == A_CLSE && pkt.arg1 == localId) {
+                    return "DONEDONE"
+                }
+            }
+        }
+
+        val pfd = runCatching { resolver.openFileDescriptor(uri, "r") }.getOrNull()
+        val buf = ByteArray(blockSize)
+
+        try {
+            val fis = pfd?.let { FileInputStream(it.fileDescriptor) }
+            val channel = fis?.channel
+            try {
+                while (true) {
+                    val msg = nextControlMessage()
+                    if (msg == "DONEDONE") {
+                        runCatching { sendPacket(A_CLSE, localId, remoteId) }
+                        onProgress(fileSize, fileSize)
+                        onLog("ADB Sideload با موفقیت روی ریکاورى تمام شد (DONEDONE).")
+                        return
+                    }
+                    if (msg == "FAILFAIL") {
+                        runCatching { sendPacket(A_CLSE, localId, remoteId) }
+                        throw IllegalStateException("ریکاورى مقصد فایل را رد کرد (FAILFAIL).")
+                    }
+                    val blockIdx = msg.toLongOrNull()
+                        ?: throw IllegalStateException("پیام نامعتبر از Sideload ریکاوری: $msg")
+                    val offset = blockIdx * blockSize.toLong()
+                    val want = min(blockSize.toLong(), maxOf(0L, fileSize - offset)).toInt()
+                    val payload: ByteArray
+                    if (channel != null) {
+                        channel.position(offset)
+                        var readTotal = 0
+                        while (readTotal < want) {
+                            val r = fis.read(buf, readTotal, want - readTotal)
+                            if (r <= 0) break
+                            readTotal += r
+                        }
+                        payload = if (readTotal == buf.size) buf.copyOf() else buf.copyOf(readTotal)
+                    } else {
+                        payload = resolver.openInputStream(uri)?.use { stream ->
+                            var skipped = 0L
+                            while (skipped < offset) {
+                                val s = stream.skip(offset - skipped)
+                                if (s <= 0) {
+                                    if (stream.read() == -1) break
+                                    skipped++
+                                } else {
+                                    skipped += s
+                                }
+                            }
+                            var readTotal = 0
+                            while (readTotal < want) {
+                                val r = stream.read(buf, readTotal, want - readTotal)
+                                if (r <= 0) break
+                                readTotal += r
+                            }
+                            buf.copyOf(readTotal)
+                        } ?: throw IllegalStateException("خطا در خواندن بلاک $blockIdx از فایل زیپ.")
+                    }
+
+                    sendPacket(A_WRTE, localId, remoteId, payload)
+                    waitForOkayAndQueueWrte()
+                    sentBlocksBytes = min(fileSize, sentBlocksBytes + payload.size.toLong())
+                    onProgress(sentBlocksBytes, fileSize)
+                }
+            } finally {
+                runCatching { fis?.close() }
+            }
+        } finally {
+            runCatching { pfd?.close() }
+        }
     }
 }

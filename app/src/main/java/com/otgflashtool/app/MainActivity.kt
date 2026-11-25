@@ -46,17 +46,21 @@ import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.HelpOutline
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Language
+import androidx.compose.material.icons.filled.LockOpen
 import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Terminal
+import androidx.compose.material.icons.filled.Transform
 import androidx.compose.material.icons.filled.Usb
 import androidx.compose.material.icons.filled.UsbOff
 import androidx.compose.material.icons.filled.Warning
@@ -135,7 +139,9 @@ private const val YOUTUBE_URL = "https://youtube.com/@teniment?si=7e8G_RFO-C4ffA
 private const val INSTAGRAM_URL = "https://www.instagram.com/tenimenttech?fqnt=MXV6MzltMmZ6eWlyYw=="
 private const val FACEBOOK_URL = "https://www.facebook.com/share/1A6BybCG6b/"
 private const val TELEGRAM_URL = "https://t.me/TenimentApps"
-private const val APP_VERSION_LABEL = "v2.6.1"
+private const val MAGISK_RELEASES_URL = "https://github.com/topjohnwu/Magisk/releases/latest"
+private const val DEVELOPER_EMAIL = "masterteniment@gmail.com"
+private const val APP_VERSION_LABEL = "v2.8.1"
 
 data class PickedFile(
     val uri: Uri,
@@ -199,8 +205,13 @@ class MainActivity : ComponentActivity() {
                     val device = extractUsbDevice(intent)
                     refreshUsbDevices()
                     if (device != null) {
-                        addLog("External USB device attached: ${NativeUsbCore.describeDevice(device)}")
-                        requestPermissionAndConnect(device)
+                        val alreadyBound = activeBinding?.device?.deviceId == device.deviceId
+                        if (alreadyBound) {
+                            addLog("External USB device attached (session already active): ${NativeUsbCore.describeDevice(device)}")
+                        } else {
+                            addLog("External USB device attached: ${NativeUsbCore.describeDevice(device)}")
+                            requestPermissionAndConnect(device)
+                        }
                     }
                 }
 
@@ -304,6 +315,12 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun openEmailSupport() {
+        runCatching {
+            startActivity(Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:$DEVELOPER_EMAIL")))
+        }
+    }
+
     private fun extractUsbDevice(intent: Intent?): UsbDevice? {
         if (intent == null) return null
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -374,6 +391,8 @@ class MainActivity : ComponentActivity() {
         statusMessage = strings().usbConnecting
 
         Thread {
+            var pendingBinding: UsbBinding? = null
+            var promoted = false
             try {
                 // Close any previous binding silently on worker thread without overwriting statusMessage
                 activeBinding?.close()
@@ -386,6 +405,7 @@ class MainActivity : ComponentActivity() {
                 }
 
                 val binding = NativeUsbCore.bindDevice(usbManager, device) { addLog(it) }
+                pendingBinding = binding
 
                 when (binding.protocol) {
                     DetectedProtocol.DOWNLOAD_MODE -> {
@@ -404,6 +424,7 @@ class MainActivity : ComponentActivity() {
                             addLog("PIT auto-read warning: ${err.message}")
                             emptyList()
                         }
+                        promoted = true
                         runOnUiThread {
                             activeBinding = binding
                             activeDownloadMode = downloader
@@ -419,6 +440,7 @@ class MainActivity : ComponentActivity() {
                         }
                         val adb = AdbProtocol(binding)
                         val banner = adb.connectAndAuth { addLog(it) }
+                        promoted = true
                         runOnUiThread {
                             activeBinding = binding
                             activeAdb = adb
@@ -434,6 +456,7 @@ class MainActivity : ComponentActivity() {
                         val fb = FastbootProtocol(binding)
                         val prod = runCatching { fb.sendCommand("getvar:product").message }.getOrDefault("")
                         addLog("Fastboot ready (product=${prod.ifBlank { "unknown" }}).")
+                        promoted = true
                         runOnUiThread {
                             activeBinding = binding
                             activeFastboot = fb
@@ -447,6 +470,9 @@ class MainActivity : ComponentActivity() {
                     }
                 }
             } catch (e: Exception) {
+                if (!promoted) {
+                    pendingBinding?.close()
+                }
                 addLog("Connection error: ${e.message ?: "unknown"}")
                 runOnUiThread {
                     statusMessage = e.message ?: "USB connection error"
@@ -500,6 +526,8 @@ class MainActivity : ComponentActivity() {
         var fastbootPartition by remember { mutableStateOf("boot") }
         var adbCommand by remember { mutableStateOf("getprop ro.product.model") }
         var adbOutput by remember { mutableStateOf("") }
+        var sideloadZipFile by remember { mutableStateOf<PickedFile?>(null) }
+        var pendingApkToZipSource by remember { mutableStateOf<PickedFile?>(null) }
 
         val notifPermissionLauncher = rememberLauncherForActivityResult(
             ActivityResultContracts.RequestPermission()
@@ -528,6 +556,93 @@ class MainActivity : ComponentActivity() {
             if (uri != null) {
                 fastbootFile = resolvePickedFile(uri)
                 addLog("Fastboot image selected: ${fastbootFile?.name} (${formatBytes(fastbootFile?.size ?: 0L)})")
+            }
+        }
+
+        val sideloadZipPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+            if (uri != null) {
+                val picked = resolvePickedFile(uri)
+                sideloadZipFile = picked
+                addLog("ADB Sideload ZIP selected: ${picked.name} (${formatBytes(picked.size)})")
+            }
+        }
+
+        val createConvertedZipLauncher = rememberLauncherForActivityResult(
+            ActivityResultContracts.CreateDocument("application/zip")
+        ) { destUri ->
+            val src = pendingApkToZipSource
+            pendingApkToZipSource = null
+            if (destUri != null && src != null) {
+                scope.launch {
+                    isBusy = true
+                    progressFraction = 0.01f
+                    progressLabel = s.magiskConvertBtn
+                    try {
+                        val targetName = resolvePickedFile(destUri).name
+                        withContext(Dispatchers.IO) {
+                            contentResolver.openInputStream(src.uri)?.use { input ->
+                                contentResolver.openOutputStream(destUri)?.use { output ->
+                                    val buffer = ByteArray(65536)
+                                    var copied = 0L
+                                    val total = maxOf(src.size, 1L)
+                                    while (true) {
+                                        val n = input.read(buffer)
+                                        if (n <= 0) break
+                                        output.write(buffer, 0, n)
+                                        copied += n
+                                        val frac = (copied.toFloat() / total.toFloat()).coerceIn(0.01f, 1f)
+                                        runOnUiThread {
+                                            progressFraction = frac
+                                            progressLabel = "${src.name} -> $targetName (${formatBytes(copied)})"
+                                        }
+                                    }
+                                    output.flush()
+                                } ?: throw IllegalStateException("Unable to open destination ZIP file.")
+                            } ?: throw IllegalStateException("Unable to read source APK file.")
+                        }
+                        val savedZip = resolvePickedFile(destUri)
+                        sideloadZipFile = savedZip
+                        progressFraction = 1f
+                        statusMessage = s.magiskConvertDone(savedZip.name)
+                        addLog("Converted Magisk APK -> Flashable ZIP: ${savedZip.name} (${formatBytes(savedZip.size)})")
+                    } catch (e: Exception) {
+                        addLog("APK -> ZIP error: ${e.message}")
+                        statusMessage = e.message ?: "APK Conversion Error"
+                    } finally {
+                        isBusy = false
+                    }
+                }
+            }
+        }
+
+        val apkToZipSourcePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+            if (uri != null) {
+                scope.launch {
+                    val picked = withContext(Dispatchers.IO) { resolvePickedFile(uri) }
+                    val validPkHeader = withContext(Dispatchers.IO) {
+                        runCatching {
+                            contentResolver.openInputStream(uri)?.use { input ->
+                                val header = ByteArray(2)
+                                val read = input.read(header)
+                                read == 2 && header[0] == 0x50.toByte() && header[1] == 0x4B.toByte()
+                            } ?: false
+                        }.getOrDefault(false)
+                    }
+                    if (!validPkHeader) {
+                        addLog("Invalid APK/ZIP header for ${picked.name}")
+                        statusMessage = s.magiskInvalidApkError
+                    } else {
+                        pendingApkToZipSource = picked
+                        val baseName = picked.name.substringBeforeLast('.', picked.name)
+                        val suggestedZipName = if (picked.name.endsWith(".zip", ignoreCase = true)) {
+                            picked.name
+                        } else {
+                            "$baseName.zip"
+                        }
+                        addLog("Valid Magisk APK (${picked.name}) selected — choose save location for $suggestedZipName")
+                        createConvertedZipLauncher.launch(suggestedZipName)
+                    }
+                }
             }
         }
 
@@ -895,6 +1010,80 @@ class MainActivity : ComponentActivity() {
                                 } catch (e: Exception) {
                                     addLog("Fastboot command error: ${e.message}")
                                 } finally {
+                                    isBusy = false
+                                }
+                            }
+                        },
+                        sideloadZipFile = sideloadZipFile,
+                        onDownloadMagisk = {
+                            addLog("Opening official Magisk GitHub Releases...")
+                            openExternalUrl(MAGISK_RELEASES_URL)
+                        },
+                        onConvertMagiskApkToZip = {
+                            apkToZipSourcePicker.launch(
+                                arrayOf(
+                                    "application/vnd.android.package-archive",
+                                    "application/octet-stream",
+                                    "*/*"
+                                )
+                            )
+                        },
+                        onPickSideloadZip = {
+                            sideloadZipPicker.launch(
+                                arrayOf(
+                                    "application/zip",
+                                    "application/octet-stream",
+                                    "*/*"
+                                )
+                            )
+                        },
+                        onStartSideload = {
+                            val adb = activeAdb ?: return@AdbFastbootTab
+                            val zipFile = sideloadZipFile ?: return@AdbFastbootTab
+                            scope.launch {
+                                isBusy = true
+                                progressFraction = 0.01f
+                                progressLabel = "ADB Sideload (${zipFile.name})"
+                                FlashForegroundService.update(
+                                    this@MainActivity,
+                                    "ADB Sideload (${zipFile.name})",
+                                    s.notifFlashKeepConnected,
+                                    1
+                                )
+                                var lastPct = -1
+                                try {
+                                    withContext(Dispatchers.IO) {
+                                        adb.sideloadUri(
+                                            resolver = contentResolver,
+                                            uri = zipFile.uri,
+                                            fileSize = zipFile.size,
+                                            onLog = { addLog(it) },
+                                            onProgress = { sent, total ->
+                                                val frac = if (total > 0L) sent.toFloat() / total.toFloat() else 0f
+                                                val pct = (frac * 100f).toInt().coerceIn(0, 100)
+                                                if (pct != lastPct) {
+                                                    lastPct = pct
+                                                    FlashForegroundService.update(
+                                                        this@MainActivity,
+                                                        "ADB Sideload ($pct%)",
+                                                        s.notifFlashKeepConnected,
+                                                        pct
+                                                    )
+                                                }
+                                                runOnUiThread {
+                                                    progressFraction = frac.coerceIn(0f, 1f)
+                                                    progressLabel = "${zipFile.name} (${formatBytes(sent)} / ${formatBytes(total)})"
+                                                }
+                                            }
+                                        )
+                                    }
+                                    progressFraction = 1f
+                                    statusMessage = s.sideloadDoneMsg
+                                } catch (e: Exception) {
+                                    addLog("ADB Sideload error: ${e.message}")
+                                    statusMessage = e.message ?: "ADB Sideload Error"
+                                } finally {
+                                    FlashForegroundService.stop(this@MainActivity)
                                     isBusy = false
                                 }
                             }
@@ -1369,7 +1558,12 @@ class MainActivity : ComponentActivity() {
         onFastbootPartitionChange: (String) -> Unit,
         onPickFastbootFile: () -> Unit,
         onFastbootFlash: () -> Unit,
-        onFastbootCommand: (String) -> Unit
+        onFastbootCommand: (String) -> Unit,
+        sideloadZipFile: PickedFile?,
+        onDownloadMagisk: () -> Unit,
+        onConvertMagiskApkToZip: () -> Unit,
+        onPickSideloadZip: () -> Unit,
+        onStartSideload: () -> Unit
     ) {
         val adbReady = activeAdb != null && !isBusy
         val fbReady = activeFastboot != null && !isBusy
@@ -1504,6 +1698,188 @@ class MainActivity : ComponentActivity() {
                         ) {
                             Text(s.fastbootRebootBtn)
                         }
+                    }
+
+                    HorizontalDivider(color = Color(0xFF1F2937))
+
+                    var pendingOemCmd by remember { mutableStateOf<String?>(null) }
+
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.LockOpen,
+                            contentDescription = null,
+                            tint = Color(0xFFF59E0B),
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Text(
+                            text = s.fastbootOemSectionTitle,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp,
+                            color = Color.White
+                        )
+                    }
+
+                    Text(
+                        text = s.fastbootOemSectionDesc,
+                        fontSize = 11.sp,
+                        color = Color(0xFF94A3B8),
+                        lineHeight = 17.sp
+                    )
+
+                    OutlinedButton(
+                        onClick = { onFastbootCommand("flashing get_unlock_ability") },
+                        enabled = fbReady,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(s.fastbootCheckUnlockBtn, fontSize = 12.sp)
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedButton(
+                            onClick = { pendingOemCmd = "flashing unlock" },
+                            enabled = fbReady,
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text(s.fastbootUnlockBtn, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
+                        OutlinedButton(
+                            onClick = { pendingOemCmd = "flashing lock" },
+                            enabled = fbReady,
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text(s.fastbootLockBtn, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
+                    }
+
+                    if (pendingOemCmd != null) {
+                        val cmdToRun = pendingOemCmd!!
+                        AlertDialog(
+                            onDismissRequest = { pendingOemCmd = null },
+                            title = { Text(s.fastbootOemConfirmTitle, fontWeight = FontWeight.Bold, fontSize = 15.sp) },
+                            text = {
+                                Text(
+                                    text = if (cmdToRun == "flashing unlock") s.fastbootOemUnlockConfirmBody else s.fastbootOemLockConfirmBody,
+                                    fontSize = 12.sp,
+                                    lineHeight = 19.sp
+                                )
+                            },
+                            confirmButton = {
+                                Button(
+                                    onClick = {
+                                        pendingOemCmd = null
+                                        onFastbootCommand(cmdToRun)
+                                    }
+                                ) {
+                                    Text(s.fastbootOemConfirmBtn)
+                                }
+                            },
+                            dismissButton = {
+                                OutlinedButton(onClick = { pendingOemCmd = null }) {
+                                    Text(s.closeBtn)
+                                }
+                            }
+                        )
+                    }
+                }
+            }
+
+            // Magisk Root Toolkit & ADB Sideload Card
+            Card(
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF111827)),
+                shape = RoundedCornerShape(16.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .border(1.dp, Color(0xFF10B981).copy(alpha = 0.45f), RoundedCornerShape(16.dp))
+            ) {
+                Column(
+                    modifier = Modifier.padding(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.Security,
+                            contentDescription = null,
+                            tint = Color(0xFF34D399),
+                            modifier = Modifier.size(19.dp)
+                        )
+                        Text(
+                            text = s.magiskCardTitle,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp,
+                            color = Color.White
+                        )
+                    }
+
+                    Text(
+                        text = s.magiskCardDesc,
+                        fontSize = 11.sp,
+                        color = Color(0xFF94A3B8),
+                        lineHeight = 18.sp
+                    )
+
+                    Button(
+                        onClick = onDownloadMagisk,
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF059669)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.Download, contentDescription = null, modifier = Modifier.size(17.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(s.magiskDownloadBtn, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+
+                    OutlinedButton(
+                        onClick = onConvertMagiskApkToZip,
+                        enabled = !isBusy,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.Transform, contentDescription = null, modifier = Modifier.size(17.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(s.magiskConvertBtn, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+
+                    HorizontalDivider(color = Color(0xFF1F2937))
+
+                    Text(
+                        text = s.sideloadTitle,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 13.sp,
+                        color = Color(0xFF60A5FA)
+                    )
+
+                    OutlinedButton(
+                        onClick = onPickSideloadZip,
+                        enabled = !isBusy,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.FolderOpen, contentDescription = null, modifier = Modifier.size(17.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = sideloadZipFile?.let { "${it.name} (${formatBytes(it.size)})" } ?: s.sideloadPickZip,
+                            fontSize = 12.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+
+                    Button(
+                        onClick = onStartSideload,
+                        enabled = adbReady && sideloadZipFile != null,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(17.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(s.sideloadFlashBtn, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                 }
             }
@@ -1695,6 +2071,27 @@ class MainActivity : ComponentActivity() {
                 ) {
                     Text(text = s.guide4Title, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color.White)
                     Text(text = s.guide4Body, fontSize = 12.sp, color = Color(0xFFCBD5E1), lineHeight = 20.sp)
+                }
+            }
+
+            Card(
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF111827)),
+                shape = RoundedCornerShape(16.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .border(1.dp, Color(0xFF10B981).copy(alpha = 0.45f), RoundedCornerShape(16.dp))
+            ) {
+                Column(
+                    modifier = Modifier.padding(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        text = s.guide5Title,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp,
+                        color = Color(0xFF34D399)
+                    )
+                    Text(text = s.guide5Body, fontSize = 12.sp, color = Color(0xFFCBD5E1), lineHeight = 20.sp)
                 }
             }
         }
@@ -1968,6 +2365,46 @@ class MainActivity : ComponentActivity() {
                             Icon(Icons.Default.OpenInNew, contentDescription = null, modifier = Modifier.size(15.dp))
                             Spacer(modifier = Modifier.width(6.dp))
                             Text("Facebook", fontSize = 12.sp, maxLines = 1)
+                        }
+                    }
+
+                    HorizontalDivider(color = Color(0xFF1F2937))
+
+                    Text(
+                        text = s.contactEmailLabel,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color(0xFFCBD5E1)
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        OutlinedButton(
+                            onClick = { openEmailSupport() },
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Icon(Icons.Default.Email, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = DEVELOPER_EMAIL,
+                                fontSize = 12.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                        OutlinedButton(
+                            onClick = {
+                                val cm = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                                cm.setPrimaryClip(ClipData.newPlainText("Developer Email", DEVELOPER_EMAIL))
+                                statusMessage = s.contactEmailCopied
+                                addLog("${s.contactEmailCopied}: $DEVELOPER_EMAIL")
+                            },
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp)
+                        ) {
+                            Icon(Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(15.dp))
                         }
                     }
                 }

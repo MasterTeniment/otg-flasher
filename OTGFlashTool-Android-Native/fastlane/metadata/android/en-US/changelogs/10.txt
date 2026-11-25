@@ -1,4 +1,0 @@
-v2.6.0:
-- Prepared full F-Droid compliance: disabled proprietary Play dependency metadata block, added text-only gradle-wrapper.properties, MIT LICENSE, and bilingual Fastlane store metadata (EN/FA).
-- Cleaned Gradle project naming and verified unsigned Release APK builds alongside Debug APK.
-- Includes pure CDC-DATA SET_INTERFACE initialization for legacy Download Mode devices and bilingual EN/FA UI.

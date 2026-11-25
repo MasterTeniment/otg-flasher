@@ -80,6 +80,26 @@ data class UiStrings(
     val fastbootFlashBtn: String,
     val fastbootRebootBtn: String,
     val fastbootFlashDone: (String) -> String,
+    val fastbootOemSectionTitle: String,
+    val fastbootOemSectionDesc: String,
+    val fastbootCheckUnlockBtn: String,
+    val fastbootUnlockBtn: String,
+    val fastbootLockBtn: String,
+    val fastbootOemConfirmTitle: String,
+    val fastbootOemUnlockConfirmBody: String,
+    val fastbootOemLockConfirmBody: String,
+    val fastbootOemConfirmBtn: String,
+    // Magisk & ADB Sideload toolkit
+    val magiskCardTitle: String,
+    val magiskCardDesc: String,
+    val magiskDownloadBtn: String,
+    val magiskConvertBtn: String,
+    val magiskConvertDone: (String) -> String,
+    val magiskInvalidApkError: String,
+    val sideloadTitle: String,
+    val sideloadPickZip: String,
+    val sideloadFlashBtn: String,
+    val sideloadDoneMsg: String,
     // Guide tab
     val guide1Title: String,
     val guide1Host: String,
@@ -96,6 +116,8 @@ data class UiStrings(
     val guide3Body: String,
     val guide4Title: String,
     val guide4Body: String,
+    val guide5Title: String,
+    val guide5Body: String,
     // Logs tab
     val logsTitle: (Int) -> String,
     val copyBtn: String,
@@ -112,6 +134,8 @@ data class UiStrings(
     val githubOpenReleases: String,
     val socialCardTitle: String,
     val socialCardSubtitle: String,
+    val contactEmailLabel: String,
+    val contactEmailCopied: String,
     val complianceCardTitle: String,
     val complianceBody: String,
     val showDisclaimerAgain: String
@@ -182,6 +206,25 @@ object AppStrings {
         fastbootFlashBtn = "فلش پارتیشن",
         fastbootRebootBtn = "ریبوت",
         fastbootFlashDone = { p -> "پارتیشن $p با موفقیت فلش شد" },
+        fastbootOemSectionTitle = "باز کردن رسمی بوت‌لودر (OEM Unlocking)",
+        fastbootOemSectionDesc = "فقط زمانی کار می‌کند که مالک دستگاه قبلاً گزینه OEM unlocking را در Developer options روشن کرده باشد. این دستور رسمی اندروید باعث پاک شدن کامل اطلاعات (Factory Reset) می‌شود.",
+        fastbootCheckUnlockBtn = "بررسی وضعیت قفل",
+        fastbootUnlockBtn = "باز کردن (flashing unlock)",
+        fastbootLockBtn = "قفل مجدد (flashing lock)",
+        fastbootOemConfirmTitle = "تایید دستور رسمی بوت‌لودر",
+        fastbootOemUnlockConfirmBody = "دستور رسمی «fastboot flashing unlock» به گوشی مقصد ارسال می‌شود.\n\n• ابتدا باید گزینه OEM unlocking توسط مالک دستگاه در Developer options فعال شده باشد.\n• تایید این عملیات روی صفحه گوشی مقصد باعث پاک شدن کامل اطلاعات (Factory Reset) می‌شود.",
+        fastbootOemLockConfirmBody = "دستور رسمی «fastboot flashing lock» به گوشی مقصد ارسال می‌شود.\n\n• فقط روی رام رسمی (Stock) اجرا کنید؛ قفل کردن بوت‌لودر روی رام یا ریکاوری غیررسمی می‌تواند باعث بوت‌لوپ شود و اطلاعات را پاک می‌کند.",
+        fastbootOemConfirmBtn = "ارسال دستور",
+        magiskCardTitle = "ابزار روت با Magisk (دانلود رسمی، تبدیل به ZIP و Sideload)",
+        magiskCardDesc = "Magisk یک ابزار متن‌باز مدیریت روت، ماژول‌ها و Zygisk است. آخرین نسخه رسمی را از گیت‌هاب دانلود کنید، فایل .apk را به .zip قابل فلش در ریکاوری کاستوم تبدیل کنید و از طریق ADB Sideload فلش بزنید (یا boot/init_boot پچ‌شده را با Fastboot فلش کنید).",
+        magiskDownloadBtn = "دریافت آخرین نسخه Magisk از گیت‌هاب",
+        magiskConvertBtn = "تبدیل Magisk.apk به فایل فلش‌شدنی (.zip)",
+        magiskConvertDone = { name -> "فایل فلش‌شدنی $name با موفقیت ساخته شد" },
+        magiskInvalidApkError = "فایل انتخاب‌شده یک APK/ZIP معتبر نیست (هدر PK یافت نشد).",
+        sideloadTitle = "فلش ZIP در ریکاوری کاستوم (ADB Sideload)",
+        sideloadPickZip = "انتخاب فایل زیپ (.zip) برای Sideload",
+        sideloadFlashBtn = "ارسال و فلش (ADB Sideload)",
+        sideloadDoneMsg = "ADB Sideload با موفقیت کامل شد",
         guide1Title = "۱. جهت صحیح وصل کردن کابل OTG (بسیار مهم)",
         guide1Host = "• گوشی مبدا (گوشی که فایل را می‌ریزد): سر آداپتور OTG باید به این گوشی وصل شود.",
         guide1Target = "• گوشی مقصد (گوشی که فایل رویش نصب می‌شود): سر کابل شارژر عادی باید به این گوشی وصل شود.",
@@ -208,9 +251,20 @@ object AppStrings {
             "۲) کابل OTG را مطابق جهت مرحله ۱ وصل کنید و دکمه «اسکن و اتصال» را بزنید تا جدول پارتیشن PIT خوانده شود.\n" +
             "۳) فایل‌های BL (بوت‌لودر)، AP (سیستم)، CP (مودم) و CSC (منطقه) را انتخاب کنید. استفاده از HOME_CSC معمولاً اطلاعات کاربری را حفظ می‌کند ولی CSC عادی گوشی را ریست فکتوری می‌کند.\n" +
             "۴) تا پایان پیام PASS! کابل را جدا نکنید. اگر وسط فلش خطایی رخ داد، قبل از تلاش مجدد حتماً گوشی مقصد را با «ولوم پایین + پاور (۷ ثانیه)» ریستارت کرده و مجدد وارد Downloading... شوید.",
-        guide4Title = "۵. راهنمای ADB و Fastboot",
+        guide4Title = "۵. راهنمای ADB، Fastboot و OEM Unlocking",
         guide4Body = "• برای ADB: در گوشی مقصد USB Debugging را روشن کنید و پس از اتصال، پیغام Allow USB Debugging را روی صفحه گوشی مقصد تایید کنید. سپس می‌توانید با یک کلیک گوشی را به Download Mode، Fastboot یا Recovery ببرید.\n" +
-            "• برای Fastboot: گوشی مقصد را در حالت Fastboot قرار دهید، نام پارتیشن (مثلاً boot یا recovery) و فایل .img را انتخاب کرده و فلش کنید.",
+            "• برای Fastboot: گوشی مقصد را در حالت Fastboot قرار دهید، نام پارتیشن (مثلاً boot یا recovery) و فایل .img را انتخاب کرده و فلش کنید.\n" +
+            "• برای OEM Unlocking رسمی: ابتدا در گوشی مقصد وارد Settings → Developer options شوید و گزینه «OEM unlocking» را با رمز خودتان روشن کنید، سپس گوشی را به Fastboot ببرید و از دکمه «بررسی وضعیت قفل» یا «flashing unlock» استفاده کنید (تایید نهایی روی صفحه گوشی مقصد انجام شده و باعث ریست فکتوری استاندارد اندروید می‌شود).",
+        guide5Title = "۶. راهنمای روت با Magisk Manager (تبدیل APK به ZIP، Sideload و Fastboot)",
+        guide5Body = "• ویژگی‌های Magisk: مدیریت دسترسی Root برنامه‌ها، نصب ماژول‌های Magisk و قابلیت Zygisk (متن‌باز در گیت‌هاب topjohnwu/Magisk).\n" +
+            "• پیش‌نیاز مهم: نصب فایل APK به‌تنهایی گوشی را روت نمی‌کند! بوت‌لودر گوشی مقصد حتماً باید آنلاک باشد و روش نصب به ریکاوری یا نسخه اندروید دستگاه بستگی دارد.\n" +
+            "• روش ۱ (دارای ریکاوری کاستوم مثل TWRP / OrangeFox):\n" +
+            "  ۱) از تب ADB دکمه «دریافت آخرین نسخه Magisk از گیت‌هاب» را بزنید و فایل Magisk-vXX.X.apk را دانلود کنید.\n" +
+            "  ۲) دکمه «تبدیل Magisk.apk به فایل فلش‌شدنی (.zip)» را بزنید تا نسخه .zip آماده شود.\n" +
+            "  ۳) گوشی مقصد را به ریکاوری کاستوم ببرید (حالت ADB Sideload) و با کابل OTG از بخش «ADB Sideload» داخل همین برنامه فایل زیپ را فلش کنید (یا داخل TWRP انتخاب و فلش نمایید).\n" +
+            "• روش ۲ (بدون ریکاوری کاستوم — گوشی‌های جدیدتر با Fastboot):\n" +
+            "  فایل boot.img (یا init_boot.img در اندروید ۱۳ به بالا) را داخل برنامه Magisk پچ کنید و سپس فایل magisk_patched را در بخش Fastboot همین برنامه روی پارتیشن boot یا init_boot فلش بزنید.\n" +
+            "⚠️ هشدار: روت کردن ممکن است برخی برنامه‌های بانکی را از کار بیندازد یا در صورت فایل اشتباه باعث مشکل بوت شود؛ حتماً قبل از شروع بکاپ تهیه کنید.",
         logsTitle = { n -> "گزارش زنده USB ($n)" },
         copyBtn = "کپی",
         clearBtn = "پاک",
@@ -225,6 +279,8 @@ object AppStrings {
         githubOpenReleases = "نسخه‌های APK",
         socialCardTitle = "ارتباط با ما و شبکه‌های اجتماعی (Teniment)",
         socialCardSubtitle = "برای آموزش‌های ویدیویی، نسخه‌های جدید و پشتیبانی ما را دنبال کنید:",
+        contactEmailLabel = "ایمیل پشتیبانی و توسعه‌دهنده:",
+        contactEmailCopied = "ایمیل در حافظه کپی شد",
         complianceCardTitle = "استانداردهای امنیتی و انطباق با گوگل پلی",
         complianceBody = "• استفاده انحصاری از Android USB Host API رسمی (بدون نیاز به Root و بدون تغییر در سیستم‌عامل گوشی مبدا).\n" +
             "• انتخاب فایل‌ها از طریق Storage Access Framework (SAF) — بدون درخواست مجوز حساس MANAGE_EXTERNAL_STORAGE.\n" +
@@ -298,6 +354,25 @@ object AppStrings {
         fastbootFlashBtn = "Flash Partition",
         fastbootRebootBtn = "Reboot",
         fastbootFlashDone = { p -> "Partition $p flashed successfully" },
+        fastbootOemSectionTitle = "Official Bootloader / OEM Unlocking",
+        fastbootOemSectionDesc = "Requires the device owner to first enable 'OEM unlocking' in Developer options. Official Android bootloader unlock performs a mandatory factory data wipe.",
+        fastbootCheckUnlockBtn = "Check Lock Status",
+        fastbootUnlockBtn = "Unlock (flashing unlock)",
+        fastbootLockBtn = "Re-Lock (flashing lock)",
+        fastbootOemConfirmTitle = "Confirm Official Bootloader Command",
+        fastbootOemUnlockConfirmBody = "This sends the standard Android 'fastboot flashing unlock' command to the target device.\n\n• 'OEM unlocking' must already be enabled by the owner in Developer options.\n• Confirming on the target screen wipes all user data (factory reset).",
+        fastbootOemLockConfirmBody = "This sends the standard Android 'fastboot flashing lock' command to the target device.\n\n• Only re-lock with stock signed firmware; locking with custom images may cause a bootloop and wipes user data.",
+        fastbootOemConfirmBtn = "Send Command",
+        magiskCardTitle = "Magisk Root Toolkit (Official GitHub, APK → ZIP & Sideload)",
+        magiskCardDesc = "Magisk is an open-source root management suite supporting root permissions, modules, and Zygisk. Download the latest official release from GitHub, convert .apk into a custom-recovery flashable .zip, and flash via ADB Sideload (or flash patched boot/init_boot in Fastboot).",
+        magiskDownloadBtn = "Get Latest Official Magisk (GitHub)",
+        magiskConvertBtn = "Convert Magisk.apk to Flashable .zip",
+        magiskConvertDone = { name -> "Flashable $name saved successfully" },
+        magiskInvalidApkError = "Selected file is not a valid APK/ZIP archive (missing PK signature).",
+        sideloadTitle = "Custom Recovery Flash (ADB Sideload .zip)",
+        sideloadPickZip = "Select Flashable ZIP (.zip)",
+        sideloadFlashBtn = "Flash via ADB Sideload",
+        sideloadDoneMsg = "ADB Sideload completed successfully",
         guide1Title = "1. Correct OTG Cable Direction (Critical)",
         guide1Host = "• Host Phone (sending firmware files): Plug the OTG adapter end into THIS phone.",
         guide1Target = "• Target Phone (receiving firmware): Plug the regular USB charging cable end into THIS phone.",
@@ -324,9 +399,20 @@ object AppStrings {
             "2) Connect the OTG cable using the direction in Step 1, then tap 'Scan & Connect' to read the PIT table.\n" +
             "3) Select BL, AP, CP, and CSC files. HOME_CSC usually preserves user data, while regular CSC performs a factory wipe.\n" +
             "4) Never unplug until PASS! appears. If a flash fails midway, force-reboot the target phone (Volume Down + Power for 7s) and re-enter 'Downloading...' before retrying.",
-        guide4Title = "5. ADB & Fastboot Guide",
+        guide4Title = "5. ADB, Fastboot & OEM Unlocking Guide",
         guide4Body = "• ADB: Enable USB Debugging on the target phone, connect via OTG, and tap 'Allow USB Debugging' on the target screen. You can then reboot straight into Download Mode, Fastboot, or Recovery.\n" +
-            "• Fastboot: Boot the target into Fastboot mode, enter the target partition (e.g. boot or recovery), pick the .img file, and flash.",
+            "• Fastboot: Boot the target into Fastboot mode, enter the target partition (e.g. boot or recovery), pick the .img file, and flash.\n" +
+            "• Official OEM Unlocking: On the target phone go to Settings → Developer options and switch ON 'OEM unlocking' with your PIN/password, then reboot to Fastboot and use 'Check Lock Status' or 'flashing unlock' (confirm on the target phone; Android automatically factory-resets user data for security).",
+        guide5Title = "6. Magisk Root Guide (APK → ZIP, ADB Sideload & Fastboot)",
+        guide5Body = "• About Magisk: Open-source root manager supporting root permissions, Magisk modules, and Zygisk (github.com/topjohnwu/Magisk).\n" +
+            "• Important: Simply installing the Magisk APK does NOT root the phone. Your target bootloader must be unlocked, and installation depends on your device/recovery.\n" +
+            "• Method 1 (Custom Recovery e.g. TWRP / OrangeFox):\n" +
+            "  1) Tap 'Get Latest Official Magisk (GitHub)' in the ADB tab to download the latest Magisk-vXX.X.apk.\n" +
+            "  2) Tap 'Convert Magisk.apk to Flashable .zip' to export a valid .zip archive.\n" +
+            "  3) Boot the target phone into Custom Recovery → ADB Sideload mode, then flash the .zip directly from this app's ADB Sideload section (or install inside TWRP).\n" +
+            "• Method 2 (No Custom Recovery — Modern Android via Fastboot):\n" +
+            "  Patch your stock boot.img (or init_boot.img on Android 13+) inside the Magisk app, then flash magisk_patched.img to 'boot' or 'init_boot' in the Fastboot section above.\n" +
+            "⚠️ Warning: Rooting may break banking/Play Integrity apps or cause boot issues if the wrong image is flashed. Always back up important data first.",
         logsTitle = { n -> "Live USB Hardware Logs ($n)" },
         copyBtn = "Copy",
         clearBtn = "Clear",
@@ -341,6 +427,8 @@ object AppStrings {
         githubOpenReleases = "APK Releases",
         socialCardTitle = "Follow Us & Community (Teniment)",
         socialCardSubtitle = "Follow our official channels for tutorials, updates, and apps:",
+        contactEmailLabel = "Developer & Support Email:",
+        contactEmailCopied = "Email copied to clipboard",
         complianceCardTitle = "Security & Google Play Compliance",
         complianceBody = "• Uses official Android USB Host API (UsbManager) exclusively — no Root required and zero host OS changes.\n" +
             "• Uses Storage Access Framework (SAF / ACTION_OPEN_DOCUMENT) — no MANAGE_EXTERNAL_STORAGE permission.\n" +

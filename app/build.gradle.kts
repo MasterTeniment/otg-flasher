@@ -12,13 +12,36 @@ android {
         applicationId = "com.otgflashtool.app"
         minSdk = 21
         targetSdk = 34
-        versionCode = 11
-        versionName = "2.6.1"
+        versionCode = 14
+        versionName = "2.8.1"
+    }
+
+    signingConfigs {
+        val keystorePath = System.getenv("RELEASE_STORE_FILE")
+        val storePasswordEnv = System.getenv("RELEASE_STORE_PASSWORD")
+        val keyAliasEnv = System.getenv("RELEASE_KEY_ALIAS")
+        val keyPasswordEnv = System.getenv("RELEASE_KEY_PASSWORD")
+        if (!keystorePath.isNullOrBlank() &&
+            !storePasswordEnv.isNullOrBlank() &&
+            !keyAliasEnv.isNullOrBlank() &&
+            !keyPasswordEnv.isNullOrBlank()
+        ) {
+            create("release") {
+                storeFile = file(keystorePath)
+                storePassword = storePasswordEnv
+                keyAlias = keyAliasEnv
+                keyPassword = keyPasswordEnv
+                enableV1Signing = true
+                enableV2Signing = true
+                enableV3Signing = true
+            }
+        }
     }
 
     buildTypes {
         release {
             isMinifyEnabled = false
+            signingConfig = signingConfigs.findByName("release")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
